@@ -170,7 +170,11 @@ export function ProjectTree({ onNewSession }: ProjectTreeProps) {
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <button
-                    className="shrink-0 p-1 rounded opacity-0 group-hover:opacity-100 hover:bg-black/10 transition-all"
+                    className={cn(
+                      "shrink-0 p-1 rounded opacity-0 group-hover:opacity-100",
+                      "hover:bg-black/10 data-[state=open]:bg-black/10 data-[state=open]:opacity-100",
+                      "transition-all"
+                    )}
                     onClick={(e) => e.stopPropagation()}
                   >
                     <MoreHorizontal className="size-3 text-muted-foreground/50" />
