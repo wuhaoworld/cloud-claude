@@ -645,146 +645,155 @@ export function ChatInput({
         />
       )}
 
-      {/* Main Input Box */}
-      <div className="w-full overflow-hidden transition-colors border dark:border-white/[0.12] border-black/[0.10] dark:bg-white/[0.04] bg-white focus-within:border-black/[0.18] dark:focus-within:border-white/[0.20] rounded-[18px]">
-        {/* Hidden file input */}
-        <input
-          ref={fileInputRef}
-          type="file"
-          multiple
-          accept={[
-            "image/*",
-            ".md", ".markdown", ".txt", ".html", ".htm", ".css",
-            ".js", ".ts", ".jsx", ".tsx", ".json", ".yaml", ".yml",
-            ".toml", ".csv", ".xml", ".sh", ".bash", ".py", ".rs",
-            ".go", ".java", ".c", ".cpp", ".h", ".hpp", ".rb", ".php",
-            ".swift", ".kt", ".sql", ".graphql", ".env", ".log",
-            ".ini", ".conf",
-          ].join(",")}
-          className="hidden"
-          onChange={handleFileChange}
-        />
+      {/* Outer gray wrapper — only when projectSelector is visible */}
+      <div
+        className={
+          projectSelector
+            ? "w-full rounded-[18px] dark:bg-white/[0.03] bg-black/[0.035]"
+            : "w-full"
+        }
+      >
+        {/* Main Input Box — with its own border */}
+        <div className="w-full overflow-hidden transition-colors border dark:border-white/[0.12] border-black/[0.10] dark:bg-white/[0.04] bg-white focus-within:border-black/[0.18] dark:focus-within:border-white/[0.20] rounded-[18px]">
+          {/* Hidden file input */}
+          <input
+            ref={fileInputRef}
+            type="file"
+            multiple
+            accept={[
+              "image/*",
+              ".md", ".markdown", ".txt", ".html", ".htm", ".css",
+              ".js", ".ts", ".jsx", ".tsx", ".json", ".yaml", ".yml",
+              ".toml", ".csv", ".xml", ".sh", ".bash", ".py", ".rs",
+              ".go", ".java", ".c", ".cpp", ".h", ".hpp", ".rb", ".php",
+              ".swift", ".kt", ".sql", ".graphql", ".env", ".log",
+              ".ini", ".conf",
+            ].join(",")}
+            className="hidden"
+            onChange={handleFileChange}
+          />
 
-        {/* Attachments preview row */}
-        {attachments.length > 0 && (
-          <div className="px-3 pt-3 pb-0">
-            <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-none">
-              {attachments.map((file, i) => (
-                <AttachmentCard
-                  key={`${file.name}-${file.size}-${i}`}
-                  file={file}
-                  previewUrl={previewUrls[file.name + file.size]}
-                  onRemove={() => removeAttachment(i)}
-                />
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* ContentEditable Editor */}
-        <div
-          className={`px-3 pt-3 relative flex items-start min-h-[60px] ${
-            disabled ? "cursor-not-allowed" : "cursor-text"
-          }`}
-          onClick={() => {
-            if (!disabled) editorRef.current?.focus();
-          }}
-        >
-          {/* Placeholder */}
-          {!hasText && (
-            <div className="absolute left-3 top-[14px] pointer-events-none text-[14.5px] dark:text-white/25 text-black/28 leading-relaxed select-none">
-              {placeholder}
+          {/* Attachments preview row */}
+          {attachments.length > 0 && (
+            <div className="px-3 pt-3 pb-0">
+              <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-none">
+                {attachments.map((file, i) => (
+                  <AttachmentCard
+                    key={`${file.name}-${file.size}-${i}`}
+                    file={file}
+                    previewUrl={previewUrls[file.name + file.size]}
+                    onRemove={() => removeAttachment(i)}
+                  />
+                ))}
+              </div>
             </div>
           )}
 
+          {/* ContentEditable Editor */}
           <div
-            ref={editorRef}
-            contentEditable={!disabled}
-            suppressContentEditableWarning
-            onInput={handleEditorInput}
-            onKeyDown={handleKeyDown}
-            onPaste={handlePaste}
-            aria-disabled={disabled}
-            id="chat-input"
-            className={`w-full bg-transparent border-none outline-none resize-none text-[14.5px] dark:text-[#e8e3d8] text-[#2d2b26] leading-relaxed max-h-[200px] overflow-y-auto min-h-[48px] break-all whitespace-pre-wrap outline-0 ${
-              disabled ? "pointer-events-none opacity-60" : ""
+            className={`px-3 pt-3 relative flex items-start min-h-[60px] ${
+              disabled ? "cursor-not-allowed" : "cursor-text"
             }`}
-            style={{ whiteSpace: "pre-wrap", wordBreak: "break-word" }}
-          />
-        </div>
+            onClick={() => {
+              if (!disabled) editorRef.current?.focus();
+            }}
+          >
+            {/* Placeholder */}
+            {!hasText && (
+              <div className="absolute left-3 top-[14px] pointer-events-none text-[14.5px] dark:text-white/25 text-black/28 leading-relaxed select-none">
+                {placeholder}
+              </div>
+            )}
 
-        {/* Bottom toolbar */}
-        <div className="flex items-center justify-between px-1.5 pb-1.5">
-          {/* Left: add attachment */}
-          <div className="flex items-center gap-0.5">
-            <button
-              title={
-                attachments.length >= MAX_ATTACHMENTS
-                  ? `最多添加 ${MAX_ATTACHMENTS} 个附件`
-                  : "添加附件"
-              }
-              onClick={handleAddAttachment}
-              disabled={disabled || attachments.length >= MAX_ATTACHMENTS}
-              className="flex items-center justify-center w-7 h-7 rounded-lg dark:text-white/45 text-black/40 dark:hover:bg-white/[0.06] hover:bg-black/[0.05] dark:hover:text-white/70 hover:text-black/65 transition-all disabled:opacity-40 disabled:cursor-not-allowed"
-            >
-              <Plus size={14} />
-            </button>
-          </div>
-
-          {/* Right: model selector slot + send/stop */}
-          <div className="flex items-center gap-1.5">
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <button
-                  disabled={disabled}
-                  className="flex items-center gap-1 px-1.5 py-0.5 rounded text-[12.5px] dark:text-white/55 text-black/45 dark:hover:bg-white/[0.06] hover:bg-black/[0.05] dark:hover:text-white/75 hover:text-black/65 transition-colors outline-none"
-                >
-                  <span>{model}</span>
-                  <ChevronDown className="size-3 opacity-60" />
-                </button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-[180px] p-1">
-                {["Mimo Pro v2.5", "Claude 3.5 Sonnet", "Claude 3.5 Haiku", "Claude 3 Opus"].map((m) => (
-                  <DropdownMenuItem
-                    key={m}
-                    onClick={() => handleModelChange(m)}
-                    className={cn(
-                      "flex items-center justify-between px-3 py-1.5 rounded-lg text-[13px] cursor-pointer",
-                      m === model && "bg-accent"
-                    )}
-                  >
-                    <span>{m}</span>
-                    {m === model && <Check className="size-3.5" />}
-                  </DropdownMenuItem>
-                ))}
-              </DropdownMenuContent>
-            </DropdownMenu>
-
-            <button
-              onClick={isActive ? onStop : handleSend}
-              title={isActive ? "停止生成" : "发送"}
-              disabled={!isActive && !canSend}
-              id="chat-send-btn"
-              className={`flex items-center justify-center w-[26px] h-[26px] rounded-full transition-all shrink-0 ${
-                isActive
-                  ? "cursor-pointer bg-[#3a3835] dark:bg-[#e8e3d8] text-white dark:text-[#2d2b26] hover:bg-[#2d2b26] dark:hover:bg-white"
-                  : canSend
-                    ? "cursor-pointer bg-[#3a3835] dark:bg-[#e8e3d8] text-white dark:text-[#2d2b26] hover:bg-[#2d2b26] dark:hover:bg-white"
-                    : "cursor-not-allowed bg-black/[0.08] dark:bg-white/[0.08] text-black/25 dark:text-white/25"
+            <div
+              ref={editorRef}
+              contentEditable={!disabled}
+              suppressContentEditableWarning
+              onInput={handleEditorInput}
+              onKeyDown={handleKeyDown}
+              onPaste={handlePaste}
+              aria-disabled={disabled}
+              id="chat-input"
+              className={`w-full bg-transparent border-none outline-none resize-none text-[14.5px] dark:text-[#e8e3d8] text-[#2d2b26] leading-relaxed max-h-[200px] overflow-y-auto min-h-[48px] break-all whitespace-pre-wrap outline-0 ${
+                disabled ? "pointer-events-none opacity-60" : ""
               }`}
-            >
-              {isActive ? (
-                <Square size={12} strokeWidth={2} />
-              ) : (
-                <ArrowUp size={13} strokeWidth={2.5} />
-              )}
-            </button>
+              style={{ whiteSpace: "pre-wrap", wordBreak: "break-word" }}
+            />
+          </div>
+
+          {/* Bottom toolbar */}
+          <div className="flex items-center justify-between px-1.5 pb-1.5">
+            {/* Left: add attachment */}
+            <div className="flex items-center gap-0.5">
+              <button
+                title={
+                  attachments.length >= MAX_ATTACHMENTS
+                    ? `最多添加 ${MAX_ATTACHMENTS} 个附件`
+                    : "添加附件"
+                }
+                onClick={handleAddAttachment}
+                disabled={disabled || attachments.length >= MAX_ATTACHMENTS}
+                className="flex items-center justify-center w-7 h-7 rounded-full dark:text-white/45 text-black/40 dark:hover:bg-white/[0.06] hover:bg-[#EAEAEA] dark:hover:text-white/70 hover:text-black/65 transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                <Plus size={14} />
+              </button>
+            </div>
+
+            {/* Right: model selector slot + send/stop */}
+            <div className="flex items-center gap-1.5">
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <button
+                    disabled={disabled}
+                    className="flex items-center gap-1 px-1.5 py-0.5 rounded text-[12.5px] dark:text-white/55 text-black/45 dark:hover:bg-white/[0.06] hover:bg-black/[0.05] dark:hover:text-white/75 hover:text-black/65 transition-colors outline-none"
+                  >
+                    <span>{model}</span>
+                    <ChevronDown className="size-3 opacity-60" />
+                  </button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-[180px] p-1">
+                  {["Mimo Pro v2.5", "Claude 3.5 Sonnet", "Claude 3.5 Haiku", "Claude 3 Opus"].map((m) => (
+                    <DropdownMenuItem
+                      key={m}
+                      onClick={() => handleModelChange(m)}
+                      className={cn(
+                        "flex items-center justify-between px-3 py-1.5 rounded-lg text-[13px] cursor-pointer",
+                        m === model && "bg-accent"
+                      )}
+                    >
+                      <span>{m}</span>
+                      {m === model && <Check className="size-3.5" />}
+                    </DropdownMenuItem>
+                  ))}
+                </DropdownMenuContent>
+              </DropdownMenu>
+
+              <button
+                onClick={isActive ? onStop : handleSend}
+                title={isActive ? "停止生成" : "发送"}
+                disabled={!isActive && !canSend}
+                id="chat-send-btn"
+                className={`flex items-center justify-center w-[26px] h-[26px] rounded-full transition-all shrink-0 ${
+                  isActive
+                    ? "cursor-pointer bg-[#3a3835] dark:bg-[#e8e3d8] text-white dark:text-[#2d2b26] hover:bg-[#2d2b26] dark:hover:bg-white"
+                    : canSend
+                      ? "cursor-pointer bg-[#3a3835] dark:bg-[#e8e3d8] text-white dark:text-[#2d2b26] hover:bg-[#2d2b26] dark:hover:bg-white"
+                      : "cursor-not-allowed bg-black/[0.08] dark:bg-white/[0.08] text-black/25 dark:text-white/25"
+                }`}
+              >
+                {isActive ? (
+                  <Square size={12} strokeWidth={2} />
+                ) : (
+                  <ArrowUp size={13} strokeWidth={2.5} />
+                )}
+              </button>
+            </div>
           </div>
         </div>
 
-        {/* Optional Project Selector Footer */}
+        {/* Project Selector — inside the outer gray wrapper, below the main input box */}
         {projectSelector && (
-          <div className="bg-[#f5f5f5] dark:bg-white/[0.02] border-t dark:border-white/[0.08] border-black/[0.06] px-4 py-2.5 flex items-center justify-between">
+          <div className="flex items-center pl-3.5 pr-2 py-2.5">
             {projectSelector}
           </div>
         )}

@@ -65,7 +65,7 @@ export default function ChatPage() {
             projectSelector={
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <button className="flex items-center gap-1.5 text-[13px] text-muted-foreground hover:text-foreground outline-none transition-colors">
+                  <button className="flex items-center gap-1.5 text-[13px] text-muted-foreground hover:text-foreground outline-none transition-colors px-3 py-1 -ml-3 hover:bg-[#EAEAEA] dark:hover:bg-white/[0.08] rounded-full">
                     <Folder className="size-3.5 shrink-0" />
                     <span className="max-w-[150px] truncate">
                       {selectedProject ? selectedProject.name : "选择项目"}
