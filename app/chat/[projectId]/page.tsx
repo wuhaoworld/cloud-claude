@@ -1,6 +1,6 @@
 "use client";
 
-import { use, useCallback, useEffect, useRef, useState } from "react";
+import { use, useCallback, useEffect, useRef, useState, Suspense } from "react";
 import { useAppStore } from "@/store/app-store";
 import { MessageBubble } from "@/components/chat/message-bubble";
 import { ChatInput } from "@/components/chat/chat-input";
@@ -9,6 +9,7 @@ import { toast } from "sonner";
 import { v4 as uuidv4 } from "uuid";
 import { Loader2 } from "lucide-react";
 import type { ChatMessage } from "@/store/app-store";
+import { useSearchParams } from "next/navigation";
 
 interface ChatPageProps {
   params: Promise<{ projectId: string }>;
@@ -16,7 +17,15 @@ interface ChatPageProps {
 
 export default function ProjectChatPage({ params }: ChatPageProps) {
   const { projectId } = use(params);
-  return <ChatArea projectId={projectId} sessionId={undefined} />;
+  return (
+    <Suspense fallback={
+      <div className="flex-1 flex items-center justify-center">
+        <Loader2 className="size-6 animate-spin text-muted-foreground" />
+      </div>
+    }>
+      <ChatArea projectId={projectId} sessionId={undefined} />
+    </Suspense>
+  );
 }
 
 export function ChatArea({
@@ -53,6 +62,10 @@ export function ChatArea({
   // 标记是否已完成历史消息加载（防止重复加载）
   const loadedKeyRef = useRef<string>("");
   const [isLoadingHistory, setIsLoadingHistory] = useState(false);
+
+  const searchParams = useSearchParams();
+  const promptParam = searchParams.get("prompt");
+  const initialSentRef = useRef(false);
 
   // 切换会话/项目时初始化
   useEffect(() => {
@@ -450,6 +463,24 @@ export function ChatArea({
       addSession,
     ]
   );
+
+  // 检测是否有来自 welcome 页面的初始 prompt，自动发送
+  useEffect(() => {
+    if (
+      promptParam &&
+      !sessionId &&
+      !initialSentRef.current &&
+      projects.length > 0 &&
+      !isLoadingHistory
+    ) {
+      initialSentRef.current = true;
+      // 触发发送
+      handleSend(promptParam);
+      // 清理 URL 中的 query 参数以防止刷新时再次发送
+      const newUrl = `/chat/${projectId}`;
+      window.history.replaceState(null, "", newUrl);
+    }
+  }, [promptParam, projectId, sessionId, projects, isLoadingHistory, handleSend]);
 
   const handleStop = () => {
     abortRef.current?.abort();

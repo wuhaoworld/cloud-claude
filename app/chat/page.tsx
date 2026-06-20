@@ -1,81 +1,119 @@
 "use client";
 
-import { Sparkles, FolderPlus, MessageSquarePlus } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { cn } from "@/lib/utils";
 import { useState } from "react";
+import { useRouter } from "next/navigation";
+import { useAppStore } from "@/store/app-store";
+import { ChatInput } from "@/components/chat/chat-input";
 import { CreateProjectDialog } from "@/components/project/create-project-dialog";
+import { Folder, ChevronDown, Check, Plus } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { cn } from "@/lib/utils";
+import { toast } from "sonner";
 
 export default function ChatPage() {
+  const router = useRouter();
   const [createOpen, setCreateOpen] = useState(false);
+  const { projects, currentProjectId, setCurrentProject } = useAppStore();
+  const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
+
+  // 计算当前生效的项目 ID
+  const activeProjectId =
+    selectedProjectId ||
+    (currentProjectId && projects.some((p) => p.id === currentProjectId)
+      ? currentProjectId
+      : projects.length > 0
+      ? projects[0].id
+      : null);
+
+  const handleSelectProject = (projectId: string) => {
+    setSelectedProjectId(projectId);
+    setCurrentProject(projectId);
+  };
+
+  const handleSend = (prompt: string) => {
+    if (!activeProjectId) {
+      toast.error("请先选择或创建一个项目");
+      return;
+    }
+    // 重定向到项目的 chat 页面，并通过 query 参数传递 prompt
+    router.push(`/chat/${activeProjectId}?prompt=${encodeURIComponent(prompt)}`);
+  };
+
+  const selectedProject = projects.find((p) => p.id === activeProjectId);
 
   return (
-    <div className="flex-1 flex items-center justify-center h-full bg-background">
-      <div className="text-center max-w-md px-4">
-        {/* 图标 */}
-        <div className="flex justify-center mb-6">
-          <div
-            className={cn(
-              "size-16 rounded-2xl",
-              "bg-gradient-to-br from-blue-500 to-indigo-600",
-              "flex items-center justify-center",
-              "shadow-xl shadow-blue-500/20"
-            )}
-          >
-            <Sparkles className="size-8 text-white" />
-          </div>
-        </div>
-
-        <h1 className="text-2xl font-semibold tracking-tight mb-2">
-          欢迎使用 Cloud Claude
+    <div className="flex-1 flex flex-col items-center justify-center h-full bg-background pb-32">
+      <div className="w-full max-w-[680px] px-6 flex flex-col items-center gap-8 animate-[fadeUp_0.35s_ease]">
+        {/* H1 标题 */}
+        <h1 className="text-[28px] font-normal dark:text-[#e8e3d8] text-[#2d2b26] text-center tracking-[-0.3px] m-0 leading-snug">
+          有什么我能帮你的吗？
         </h1>
-        <p className="text-sm text-muted-foreground mb-8 leading-relaxed">
-          一个智能的 AI 编程助手。创建或选择一个项目，
-          <br />
-          开始与 AI 进行深度编程对话。
-        </p>
 
-        {/* 操作按钮 */}
-        <div className="flex flex-col gap-3 items-center">
-          <Button
-            size="lg"
-            className={cn(
-              "gap-2 px-6 rounded-xl",
-              "bg-gradient-to-br from-blue-500 to-indigo-600",
-              "hover:from-blue-600 hover:to-indigo-700",
-              "shadow-lg shadow-blue-500/20"
-            )}
-            onClick={() => setCreateOpen(true)}
-            id="welcome-new-project-btn"
-          >
-            <FolderPlus className="size-4" />
-            新建项目
-          </Button>
-
-          <p className="text-xs text-muted-foreground">
-            或从左侧项目列表中选择一个已有项目
-          </p>
-        </div>
-
-        {/* 功能亮点 */}
-        <div className="mt-10 grid grid-cols-2 gap-3 text-left">
-          {[
-            { title: "流式对话", desc: "实时流式输出，感受 AI 思考" },
-            { title: "代码调试", desc: "AI 自动运行并修复代码错误" },
-            { title: "文件操作", desc: "直接读写项目文件，一键应用" },
-            { title: "版本控制", desc: "Git 集成，随时回滚 AI 修改" },
-          ].map((item) => (
-            <div
-              key={item.title}
-              className={cn(
-                "p-3 rounded-xl border border-border/60",
-                "bg-muted/30 hover:bg-muted/60 transition-colors"
-              )}
-            >
-              <p className="text-xs font-semibold mb-0.5">{item.title}</p>
-              <p className="text-[11px] text-muted-foreground">{item.desc}</p>
-            </div>
-          ))}
+        {/* 聊天输入框 */}
+        <div className="w-full">
+          <ChatInput
+            onSend={handleSend}
+            placeholder="询问任何事。输入 @ 使用插件或提及文件"
+            projectId={activeProjectId}
+            projectSelector={
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <button className="flex items-center gap-1.5 text-[13px] text-muted-foreground hover:text-foreground outline-none transition-colors">
+                    <Folder className="size-3.5 shrink-0" />
+                    <span className="max-w-[150px] truncate">
+                      {selectedProject ? selectedProject.name : "选择项目"}
+                    </span>
+                    <ChevronDown className="size-3 opacity-60" />
+                  </button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="start" className="w-56 p-1">
+                  <DropdownMenuLabel className="text-[11px] font-medium text-muted-foreground/70 px-2 py-1">
+                    切换当前项目
+                  </DropdownMenuLabel>
+                  <DropdownMenuSeparator />
+                  {projects.length === 0 ? (
+                    <div className="text-[12px] text-muted-foreground/60 px-3 py-2 text-center">
+                      无可用项目
+                    </div>
+                  ) : (
+                    <div className="max-h-60 overflow-y-auto space-y-0.5">
+                      {projects.map((proj) => (
+                        <DropdownMenuItem
+                          key={proj.id}
+                          onClick={() => handleSelectProject(proj.id)}
+                          className={cn(
+                            "flex items-center gap-2 px-2.5 py-1.5 rounded-md text-[13px] cursor-pointer",
+                            proj.id === activeProjectId && "bg-accent text-accent-foreground"
+                          )}
+                        >
+                          <Folder className="size-3.5 text-muted-foreground shrink-0" />
+                          <span className="truncate flex-1">{proj.name}</span>
+                          {proj.id === activeProjectId && (
+                            <Check className="size-3.5 ml-auto text-primary shrink-0" />
+                          )}
+                        </DropdownMenuItem>
+                      ))}
+                    </div>
+                  )}
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem
+                    onClick={() => setCreateOpen(true)}
+                    className="gap-2 px-2.5 py-1.5 rounded-md text-[13px] text-primary focus:text-primary cursor-pointer"
+                  >
+                    <Plus className="size-3.5" />
+                    新建项目
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            }
+          />
         </div>
       </div>
 

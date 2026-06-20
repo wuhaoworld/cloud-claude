@@ -1,8 +1,15 @@
 "use client";
 
 import { useState, useRef, useEffect, useCallback, useMemo } from "react";
-import { Plus, Square, ArrowUp } from "lucide-react";
+import { Plus, Square, ArrowUp, ChevronDown, Check } from "lucide-react";
 import { useAppStore } from "@/store/app-store";
+import { cn } from "@/lib/utils";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import AttachmentCard, {
   type AttachmentFile,
 } from "./chat-input/AttachmentCard";
@@ -74,6 +81,8 @@ interface ChatInputProps {
   placeholder?: string;
   /** 当前项目 ID（用于加载文件列表和技能列表） */
   projectId?: string | null;
+  /** 可选的项目选择器，渲染在输入框底部 */
+  projectSelector?: React.ReactNode;
 }
 
 const MAX_ATTACHMENTS = 5;
@@ -86,9 +95,24 @@ export function ChatInput({
   disabled = false,
   placeholder = "向 AI 询问任何问题... 输入 / 使用技能，@ 提及文件",
   projectId,
+  projectSelector,
 }: ChatInputProps) {
   const isStreaming = useAppStore((s) => s.isStreaming);
   const isActive = isStreaming;
+
+  const [model, setModel] = useState<string>(() => {
+    if (typeof window !== "undefined") {
+      return localStorage.getItem("selected-model") || "Mimo Pro v2.5";
+    }
+    return "Mimo Pro v2.5";
+  });
+
+  const handleModelChange = (val: string) => {
+    setModel(val);
+    if (typeof window !== "undefined") {
+      localStorage.setItem("selected-model", val);
+    }
+  };
 
   // ── Editor state ──
   const editorRef = useRef<HTMLDivElement>(null);
@@ -709,7 +733,32 @@ export function ChatInput({
 
           {/* Right: model selector slot + send/stop */}
           <div className="flex items-center gap-1.5">
-            {/* ModelSelector 预留插槽，由父组件通过 children 或扩展 props 注入 */}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button
+                  disabled={disabled}
+                  className="flex items-center gap-1 px-1.5 py-0.5 rounded text-[12.5px] dark:text-white/55 text-black/45 dark:hover:bg-white/[0.06] hover:bg-black/[0.05] dark:hover:text-white/75 hover:text-black/65 transition-colors outline-none"
+                >
+                  <span>{model}</span>
+                  <ChevronDown className="size-3 opacity-60" />
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-[180px] p-1">
+                {["Mimo Pro v2.5", "Claude 3.5 Sonnet", "Claude 3.5 Haiku", "Claude 3 Opus"].map((m) => (
+                  <DropdownMenuItem
+                    key={m}
+                    onClick={() => handleModelChange(m)}
+                    className={cn(
+                      "flex items-center justify-between px-3 py-1.5 rounded-lg text-[13px] cursor-pointer",
+                      m === model && "bg-accent"
+                    )}
+                  >
+                    <span>{m}</span>
+                    {m === model && <Check className="size-3.5" />}
+                  </DropdownMenuItem>
+                ))}
+              </DropdownMenuContent>
+            </DropdownMenu>
 
             <button
               onClick={isActive ? onStop : handleSend}
@@ -732,6 +781,13 @@ export function ChatInput({
             </button>
           </div>
         </div>
+
+        {/* Optional Project Selector Footer */}
+        {projectSelector && (
+          <div className="bg-[#f5f5f5] dark:bg-white/[0.02] border-t dark:border-white/[0.08] border-black/[0.06] px-4 py-2.5 flex items-center justify-between">
+            {projectSelector}
+          </div>
+        )}
       </div>
     </div>
   );
