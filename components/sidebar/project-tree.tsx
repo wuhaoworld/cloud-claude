@@ -7,9 +7,7 @@ import {
   ChevronRight,
   FolderOpen,
   Folder,
-  MessageSquare,
   Plus,
-  Loader2,
   MoreHorizontal,
   Trash2,
   Pencil,
@@ -140,47 +138,40 @@ export function ProjectTree({ onNewSession }: ProjectTreeProps) {
 
         return (
           <div key={project.id}>
-            {/* 项目行 */}
+            {/* 项目行 — 点击整行展开/收起 */}
             <div
               className={cn(
                 "group flex items-center gap-1 px-2 py-1.5 rounded-md cursor-pointer",
-                "hover:bg-accent/60 transition-colors",
-                isActive && !currentSessionId && "bg-accent"
+                "hover:bg-[#E8EBEB] transition-colors",
+                isActive && !currentSessionId && "bg-[#E8EBEB]"
               )}
+              onClick={() => handleToggleProject(project)}
             >
-              {/* 展开箭头 */}
-              <button
-                className="shrink-0 p-0.5 rounded hover:bg-accent"
-                onClick={() => handleToggleProject(project)}
-                aria-label={isExpanded ? "折叠" : "展开"}
-              >
-                <ChevronRight
-                  className={cn(
-                    "size-3.5 text-muted-foreground transition-transform duration-150",
-                    isExpanded && "rotate-90"
-                  )}
-                />
-              </button>
-
-              {/* 文件夹图标 + 名称 */}
-              <button
-                className="flex items-center gap-1.5 flex-1 min-w-0 text-left"
-                onClick={() => handleNewSession(project)}
-              >
+              {/* 文件夹图标 + 名称 + 展开箭头 */}
+              <div className="flex items-center gap-1.5 flex-1 min-w-0">
                 {isExpanded ? (
-                  <FolderOpen className="size-3.5 text-amber-500 shrink-0" />
+                  <FolderOpen className="size-3.5 text-muted-foreground shrink-0" />
                 ) : (
-                  <Folder className="size-3.5 text-amber-500 shrink-0" />
+                  <Folder className="size-3.5 text-muted-foreground shrink-0" />
                 )}
                 <span className="text-sm font-medium truncate leading-none">
                   {project.name}
                 </span>
-              </button>
+                <ChevronRight
+                  className={cn(
+                    "size-3 text-muted-foreground shrink-0 transition-transform duration-150",
+                    isExpanded && "rotate-90"
+                  )}
+                />
+              </div>
 
               {/* 操作菜单 */}
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <button className="shrink-0 p-0.5 rounded opacity-0 group-hover:opacity-100 hover:bg-accent transition-opacity">
+                  <button
+                    className="shrink-0 p-0.5 rounded opacity-0 group-hover:opacity-100 hover:bg-[#E8EBEB] transition-opacity"
+                    onClick={(e) => e.stopPropagation()}
+                  >
                     <MoreHorizontal className="size-3.5 text-muted-foreground" />
                   </button>
                 </DropdownMenuTrigger>
@@ -211,7 +202,7 @@ export function ProjectTree({ onNewSession }: ProjectTreeProps) {
 
             {/* 会话列表（展开后显示） */}
             {isExpanded && (
-              <div className="ml-5 border-l border-border/50 pl-1.5 space-y-0.5 py-0.5">
+              <div className="space-y-0.5 px-2">
                 {projectSessions.length === 0 ? (
                   <div className="px-2 py-1.5">
                     <p className="text-xs text-muted-foreground">暂无对话</p>
@@ -224,23 +215,20 @@ export function ProjectTree({ onNewSession }: ProjectTreeProps) {
                         key={sess.sessionId}
                         onClick={() => handleSelectSession(project, sess)}
                         className={cn(
-                          "w-full flex items-start gap-1.5 px-2 py-1.5 rounded-md text-left",
-                          "hover:bg-accent/60 transition-colors",
-                          isSessionActive && "bg-accent"
+                          "w-full flex items-center gap-1.5 px-2 py-1.5 rounded-md text-left",
+                          "hover:bg-[#E8EBEB] transition-colors",
+                          isSessionActive && "bg-[#E8EBEB]"
                         )}
                       >
-                        <MessageSquare className="size-3 text-muted-foreground shrink-0 mt-0.5" />
-                        <div className="flex-1 min-w-0">
-                          <p className="text-xs truncate leading-tight">
-                            {sess.title}
-                          </p>
-                          <p className="text-[10px] text-muted-foreground mt-0.5">
-                            {formatDistanceToNow(new Date(sess.lastActiveAt), {
-                              addSuffix: true,
-                              locale: zhCN,
-                            })}
-                          </p>
-                        </div>
+                        <span className="text-xs truncate flex-1 min-w-0">
+                          {sess.title}
+                        </span>
+                        <span className="text-[10px] text-muted-foreground shrink-0">
+                          {formatDistanceToNow(new Date(sess.lastActiveAt), {
+                            addSuffix: true,
+                            locale: zhCN,
+                          })}
+                        </span>
                       </button>
                     );
                   })
