@@ -1,0 +1,38 @@
+import { NextRequest, NextResponse } from "next/server";
+import { headers } from "next/headers";
+import { auth } from "@/lib/auth";
+import { pendingPermissions } from "@/app/api/chat/stream/route";
+
+// POST /api/chat/approve — 用户审批挂起的权限请求
+export async function POST(req: NextRequest) {
+  const session = await auth.api.getSession({ headers: await headers() });
+  if (!session?.user) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  const body = await req.json();
+  const { requestId, action } = body as {
+    requestId: string;
+    action: "approve" | "deny";
+  };
+
+  if (!requestId || !action) {
+    return NextResponse.json(
+      { error: "requestId and action are required" },
+      { status: 400 }
+    );
+  }
+
+  const pending = pendingPermissions.get(requestId);
+  if (!pending) {
+    return NextResponse.json(
+      { error: "Permission request not found or already resolved" },
+      { status: 404 }
+    );
+  }
+
+  pendingPermissions.delete(requestId);
+  pending.resolve({ behavior: action === "approve" ? "allow" : "deny" });
+
+  return NextResponse.json({ success: true, behavior: action === "approve" ? "allow" : "deny" });
+}
