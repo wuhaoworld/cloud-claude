@@ -8,7 +8,7 @@ import { PermissionDialog } from "@/components/chat/permission-dialog";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { v4 as uuidv4 } from "uuid";
-import { Loader2, FolderOpen } from "lucide-react";
+import { Loader2 } from "lucide-react";
 import type { ChatMessage } from "@/store/app-store";
 
 interface ChatPageProps {
@@ -29,6 +29,8 @@ export function ChatArea({
 }) {
   const {
     projects,
+    sessions,
+    currentSessionId,
     messages,
     isStreaming,
     pendingPermission,
@@ -46,6 +48,9 @@ export function ChatArea({
   const abortRef = useRef<AbortController | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const currentProject = projects.find((p) => p.id === projectId);
+  const currentSession = (sessions[projectId] || []).find(
+    (s) => s.sessionId === currentSessionId
+  );
 
   // 标记是否已完成历史消息加载（防止重复加载）
   const loadedKeyRef = useRef<string>("");
@@ -331,18 +336,18 @@ export function ChatArea({
   return (
     <div className="flex flex-col h-full">
       {/* 顶部工具栏 */}
-      <header className="flex items-center gap-3 px-6 py-3 border-b border-border/60 shrink-0">
-        <FolderOpen className="size-4 text-amber-500" />
-        <div>
-          <h2 className="text-sm font-semibold leading-tight">
-            {currentProject?.name || "未选择项目"}
-          </h2>
-          {currentProject?.path && (
-            <p className="text-[11px] text-muted-foreground font-mono">
-              {currentProject.path}
-            </p>
-          )}
-        </div>
+      <header className="flex items-center gap-2 px-6 py-3 border-b border-border/60 shrink-0">
+        <span className="text-sm text-foreground truncate">
+          {currentProject?.name || "未选择项目"}
+        </span>
+        {currentSession && (
+          <>
+            <span className="text-border text-xs">/</span>
+            <span className="text-sm text-foreground truncate">
+              {currentSession.title}
+            </span>
+          </>
+        )}
 
         {(isStreaming || isLoadingHistory) && (
           <div className="ml-auto flex items-center gap-1.5 text-xs text-muted-foreground">
