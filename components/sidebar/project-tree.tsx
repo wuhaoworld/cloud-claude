@@ -182,20 +182,27 @@ export function ProjectTree({ onNewSession }: ProjectTreeProps) {
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="w-40">
                   <DropdownMenuItem
-                    onClick={() => handleNewSession(project)}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleNewSession(project);
+                    }}
                     className="gap-2"
                   >
                     <Plus className="size-3.5" />
                     新建对话
                   </DropdownMenuItem>
-                  <DropdownMenuItem className="gap-2">
+                  <DropdownMenuItem
+                    onClick={(e) => e.stopPropagation()}
+                    className="gap-2"
+                  >
                     <Pencil className="size-3.5" />
                     编辑项目
                   </DropdownMenuItem>
                   <DropdownMenuItem
-                    onClick={() =>
-                      handleDeleteProject(project.id, project.name)
-                    }
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleDeleteProject(project.id, project.name);
+                    }}
                     className="gap-2 text-destructive focus:text-destructive"
                   >
                     <Trash2 className="size-3.5" />

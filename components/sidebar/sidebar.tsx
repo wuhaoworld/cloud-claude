@@ -11,8 +11,6 @@ import {
   Sparkles,
   MessageSquarePlus,
 } from "lucide-react";
-import { ScrollArea } from "@/components/ui/scroll-area";
-
 import { ProjectTree } from "@/components/sidebar/project-tree";
 import { CreateProjectDialog } from "@/components/project/create-project-dialog";
 import { useAppStore } from "@/store/app-store";
@@ -83,9 +81,9 @@ export function AppSidebar() {
           </button>
         </div>
 
-        <ScrollArea className="flex-1 px-1">
+        <div className="flex-1 overflow-y-auto scrollbar-thin px-1">
           <ProjectTree onNewSession={() => {}} />
-        </ScrollArea>
+        </div>
       </div>
 
       {/* 底部设置 + 升级 */}
@@ -93,8 +91,8 @@ export function AppSidebar() {
         <Link
           href="/settings"
           className={cn(
-            "flex items-center gap-2.5 px-2.5 py-2 rounded-md",
-            "text-sm text-foreground hover:bg-accent/60 transition-colors"
+            "flex items-center gap-2.5 px-2.5 py-2 rounded-md cursor-default",
+            "text-sm text-foreground hover:bg-[#E8EBEB] transition-colors"
           )}
         >
           <Settings className="size-4 text-muted-foreground" />
