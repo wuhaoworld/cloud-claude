@@ -36,6 +36,7 @@ export const projectSessions = sqliteTable(
       .references(() => projects.id, { onDelete: "cascade" }),
     title: text("title").notNull(), // 会话标题（取自首个 prompt 的前 50 字）
     gitBranch: text("git_branch"), // 所在 Git 分支
+    pinnedAt: integer("pinned_at", { mode: "timestamp_ms" }), // 置顶时间，null 表示未置顶
     lastActiveAt: integer("last_active_at", { mode: "timestamp_ms" })
       .default(sql`(cast(unixepoch('subsecond') * 1000 as integer))`)
       .notNull(),

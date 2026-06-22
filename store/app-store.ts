@@ -20,6 +20,7 @@ export interface ProjectSession {
   projectId: string;
   title: string;
   gitBranch?: string | null;
+  pinnedAt?: number | null;
   lastActiveAt: number;
   createdAt: number;
 }
@@ -77,6 +78,8 @@ interface AppState {
   // Actions — 会话
   setSessions: (projectId: string, sessions: ProjectSession[]) => void;
   addSession: (session: ProjectSession) => void;
+  updateSession: (projectId: string, sessionId: string, data: Partial<ProjectSession>) => void;
+  removeSession: (projectId: string, sessionId: string) => void;
   setCurrentSession: (sessionId: string | null) => void;
 
   // Actions — 消息
@@ -155,6 +158,32 @@ export const useAppStore = create<AppState>()(
               ...state.sessions,
               [session.projectId]: [session, ...existing],
             },
+          };
+        }),
+      updateSession: (projectId, sessionId, data) =>
+        set((state) => {
+          const existing = state.sessions[projectId] || [];
+          return {
+            sessions: {
+              ...state.sessions,
+              [projectId]: existing.map((s) =>
+                s.sessionId === sessionId ? { ...s, ...data } : s
+              ),
+            },
+          };
+        }),
+      removeSession: (projectId, sessionId) =>
+        set((state) => {
+          const existing = state.sessions[projectId] || [];
+          return {
+            sessions: {
+              ...state.sessions,
+              [projectId]: existing.filter((s) => s.sessionId !== sessionId),
+            },
+            currentSessionId:
+              state.currentSessionId === sessionId
+                ? null
+                : state.currentSessionId,
           };
         }),
       setCurrentSession: (sessionId) => set({ currentSessionId: sessionId }),
