@@ -28,7 +28,7 @@ export function AppSidebar() {
   };
 
   return (
-    <aside className="flex flex-col h-full bg-sidebar border-r border-sidebar-border select-none">
+    <aside className="flex flex-col h-full bg-sidebar border-r border-border/60 select-none">
       {/* 顶部 Logo + 新对话 */}
       <div className="flex items-center gap-2 px-4 pt-4 pb-2">
         <div className="flex items-center gap-1.5 flex-1">

@@ -9,7 +9,7 @@ import { PermissionDialog } from "@/components/chat/permission-dialog";
 import { useAgentStream } from "@/hooks/use-agent-stream";
 import { toast } from "sonner";
 import { Loader2 } from "lucide-react";
-import { useSearchParams } from "next/navigation";
+import { useSearchParams, useRouter } from "next/navigation";
 import { SessionActionsMenu } from "@/components/session-actions-menu";
 
 interface ChatPageProps {
@@ -143,6 +143,7 @@ export function ChatArea({
   } = useAppStore();
 
   const { send, interrupt } = useAgentStream();
+  const router = useRouter();
 
   const bottomRef = useRef<HTMLDivElement>(null);
   const currentProject = projects.find((p) => p.id === projectId);
@@ -289,14 +290,17 @@ export function ChatArea({
   return (
     <div className="flex flex-col h-full">
       {/* 顶部工具栏 */}
-      <header className="flex items-center gap-2 px-6 py-3 border-b border-border/60 shrink-0">
-        <span className="text-sm text-foreground truncate">
+      <header className="flex items-center gap-1 px-3 py-3 border-b border-border/60 shrink-0">
+        <button
+          onClick={() => router.push(`/chat/${projectId}`)}
+          className="text-sm text-foreground truncate rounded-sm px-1.5 py-0.5 hover:bg-muted transition-colors"
+        >
           {currentProject?.name || "未选择项目"}
-        </span>
+        </button>
         {currentSession && (
           <>
             <span className="text-border text-xs">/</span>
-            <span className="text-sm text-foreground truncate">{currentSession.title}</span>
+            <span className="text-sm text-foreground truncate ml-1">{currentSession.title}</span>
             <SessionActionsMenu
               projectId={projectId}
               sessionId={currentSession.sessionId}
