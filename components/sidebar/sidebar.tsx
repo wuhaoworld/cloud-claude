@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
 import {
-  Plus,
+  FolderPlus,
   Search,
   Settings,
   Sparkles,
@@ -73,11 +73,11 @@ export function AppSidebar() {
           </span>
           <button
             onClick={() => setCreateOpen(true)}
-            className="size-5 flex items-center justify-center rounded hover:bg-accent text-muted-foreground hover:text-foreground transition-colors"
+            className="size-5 flex items-center justify-center rounded hover:bg-[#EBEBED] text-muted-foreground hover:text-foreground transition-colors"
             id="sidebar-new-project-btn"
             title="新建项目"
           >
-            <Plus className="size-3.5" />
+            <FolderPlus className="size-3.5" />
           </button>
         </div>
 
