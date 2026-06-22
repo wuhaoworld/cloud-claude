@@ -8,6 +8,7 @@ import { ToolCallCard } from "@/components/chat/tool-call-card";
 import type { Message, TextBlock, ThinkingBlock } from "@/store/types";
 import { code } from "@streamdown/code";
 import { cjk } from "@streamdown/cjk";
+import 'katex/dist/katex.min.css';
 
 interface MessageBubbleProps {
   message: Message;

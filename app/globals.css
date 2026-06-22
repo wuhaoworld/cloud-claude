@@ -2,6 +2,8 @@
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
 
+@source "../node_modules/streamdown/dist/*.js";
+
 @custom-variant dark (&:is(.dark *));
 
 @theme inline {
@@ -264,4 +266,44 @@
 [data-streamdown="table-header-cell"],
 [data-streamdown="table-cell"] {
   padding: 0.5rem 0.75rem;
+}
+
+[data-streamdown='code-block-actions'] {
+  border: none !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  box-shadow: none !important;
+}
+
+/* Hide the download button */
+[data-streamdown='code-block-download-button'] {
+  display: none !important;
+}
+
+/* Make code blocks fill the full width of the message bubble */
+[data-streamdown='code-block'],
+[data-streamdown='code-block'] > * {
+  width: 100% !important;
+  max-width: 100% !important;
+}
+
+/* Light mode: unified #FCFCFB background for code area and copy button bar */
+[data-streamdown='code-block']:not(:is(.dark *)),
+[data-streamdown='code-block-actions']:not(:is(.dark *)) {
+  background-color: #fcfcfb !important;
+}
+
+[data-streamdown='code-block-body'] {
+  background: transparent;
+  border: none;
+  padding-left: 0;
+  padding-top: 0;
+}
+
+[data-streamdown='code-block-body']:not(:is(.dark *)) {
+  --sdm-bg: transparent;
+}
+
+[data-streamdown='code-block-body'] pre {
+  background: transparent !important;
 }

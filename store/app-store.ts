@@ -116,7 +116,7 @@ export const useAppStore = create<AppState>()(
       // Project actions
       setProjects: (projects) => set({ projects }),
       addProject: (project) =>
-        set((state) => ({ projects: [...state.projects, project] })),
+        set((state) => ({ projects: [project, ...state.projects] })),
       updateProject: (id, data) =>
         set((state) => ({
           projects: state.projects.map((p) => (p.id === id ? { ...p, ...data } : p)),
