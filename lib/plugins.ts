@@ -27,6 +27,7 @@ interface PluginInstall {
 
 interface PluginManifest {
   name?: string;
+  displayName?: string;
   description?: string;
   version?: string;
   author?: {
@@ -47,12 +48,15 @@ interface SkillManifest {
 export interface InstalledPlugin {
   id: string;
   name: string;
+  displayName: string;
   source: string;
   description: string;
   version: string;
   installPath: string;
   scope: string;
   author?: string;
+  homepage?: string;
+  repository?: string;
   lastUpdated?: string;
 }
 
@@ -151,12 +155,15 @@ export async function getInstalledPlugins(): Promise<InstalledPlugin[]> {
       return {
         id,
         name: manifest?.name ?? fallback.name,
+        displayName: manifest?.displayName ?? manifest?.name ?? fallback.name,
         source: fallback.source,
         description: manifest?.description ?? "暂无插件描述",
         version: manifest?.version ?? currentInstall?.version ?? "unknown",
         installPath: currentInstall?.installPath ?? "",
         scope: currentInstall?.scope ?? "user",
         author: manifest?.author?.name,
+        homepage: manifest?.homepage,
+        repository: manifest?.repository,
         lastUpdated: currentInstall?.lastUpdated,
       } satisfies InstalledPlugin;
     })

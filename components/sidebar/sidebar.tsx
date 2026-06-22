@@ -23,6 +23,7 @@ export function AppSidebar() {
   const [createOpen, setCreateOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const { setCurrentProject, setCurrentSession, clearMessages } = useAppStore();
+  const isPluginsActive = pathname === "/plugins" || pathname.startsWith("/plugins/");
 
   const handleNewChat = () => {
     setCurrentProject(null);
@@ -74,7 +75,7 @@ export function AppSidebar() {
           className={cn(
             "w-full flex items-center gap-2.5 px-2.5 py-2 rounded-md",
             "text-sm text-foreground hover:bg-[#EBEBED] transition-colors cursor-default",
-            pathname === "/plugins" && "bg-[#EBEBED]"
+            isPluginsActive && "bg-[#EBEBED]"
           )}
           id="sidebar-plugins-link"
         >
