@@ -1,13 +1,17 @@
 "use client";
 
-import { cn } from "@/lib/utils";
+import { cn, formatDurationMs } from "@/lib/utils";
 import {
   ChevronDown,
   ChevronRight,
-  Terminal,
-  FileText,
+  Globe,
+  SquareTerminal,
+  Wrench,
   Search,
-  Edit,
+  Eye,
+  FolderSearch,
+  WandSparkles,
+  PencilLine,
   Loader2,
   CheckCircle,
   XCircle,
@@ -19,28 +23,63 @@ interface ToolCallCardProps {
   toolCall: ToolUseBlock;
 }
 
-const TOOL_ICONS: Record<string, React.ElementType> = {
-  Bash: Terminal,
-  FileRead: FileText,
-  FileWrite: Edit,
-  FileEdit: Edit,
-  Grep: Search,
-  Glob: Search,
-};
-
 const TOOL_LABELS: Record<string, string> = {
   Bash: "终端",
+  bash: "终端",
+  Read: "读取文件",
+  read: "读取文件",
   FileRead: "读取文件",
+  Write: "写入文件",
+  write: "写入文件",
   FileWrite: "写入文件",
   FileEdit: "编辑文件",
   Grep: "搜索内容",
+  grep: "搜索内容",
   Glob: "文件匹配",
+  glob: "文件匹配",
+  WebFetch: "网页请求",
+  webFetch: "网页请求",
 };
+
+function isSkillTool(toolName: string, input?: Record<string, unknown>) {
+  return (
+    toolName.toLowerCase().includes("skill") ||
+    (input !== undefined && ("skill" in input || "Skills" in input))
+  );
+}
+
+function renderToolIcon(toolName: string, input?: Record<string, unknown>) {
+  const normalizedToolName = toolName.toLowerCase();
+  const className = "size-3.5 text-muted-foreground shrink-0";
+
+  if (isSkillTool(toolName, input)) return <WandSparkles className={className} />;
+  if (normalizedToolName === "bash") return <SquareTerminal className={className} />;
+  if (normalizedToolName === "webfetch") return <Globe className={className} />;
+  if (normalizedToolName === "grep") return <Search className={className} />;
+  if (normalizedToolName === "read" || normalizedToolName === "fileread") {
+    return <Eye className={className} />;
+  }
+  if (normalizedToolName === "glob") return <FolderSearch className={className} />;
+  if (
+    normalizedToolName === "write" ||
+    normalizedToolName === "filewrite" ||
+    normalizedToolName === "fileedit"
+  ) {
+    return <PencilLine className={className} />;
+  }
+
+  return <Wrench className={className} />;
+}
 
 export function ToolCallCard({ toolCall }: ToolCallCardProps) {
   const [expanded, setExpanded] = useState(false);
-  const Icon = TOOL_ICONS[toolCall.toolName] || Terminal;
-  const label = TOOL_LABELS[toolCall.toolName] || toolCall.toolName;
+  const skillName =
+    typeof toolCall.input?.skill === "string"
+      ? toolCall.input.skill
+      : typeof toolCall.input?.Skills === "string"
+        ? toolCall.input.Skills
+        : undefined;
+  const label = skillName || TOOL_LABELS[toolCall.toolName] || toolCall.toolName;
 
   const statusIcon =
     toolCall.status === "running" ? (
@@ -65,7 +104,7 @@ export function ToolCallCard({ toolCall }: ToolCallCardProps) {
         onClick={() => setExpanded(!expanded)}
         className="w-full flex items-center gap-2 px-3 py-2 hover:bg-muted/60 transition-colors"
       >
-        <Icon className="size-3.5 text-muted-foreground shrink-0" />
+        {renderToolIcon(toolCall.toolName, toolCall.input)}
         <span
           className={cn(
             "font-medium transition-colors",
@@ -89,7 +128,9 @@ export function ToolCallCard({ toolCall }: ToolCallCardProps) {
 
         <div className="flex items-center gap-1.5 shrink-0 ml-auto">
           {toolCall.durationMs !== undefined && (
-            <span className="text-muted-foreground">{toolCall.durationMs}ms</span>
+            <span className="text-muted-foreground">
+              {formatDurationMs(toolCall.durationMs)}
+            </span>
           )}
           {statusIcon}
           {expanded ? (
