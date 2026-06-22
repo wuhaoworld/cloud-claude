@@ -6,6 +6,7 @@ import { projects } from '@/db/schema';
 import { eq, and } from 'drizzle-orm';
 import fs from 'fs';
 import path from 'path';
+import { validateProjectDirectory } from '@/lib/project-path';
 
 // GET /api/projects/[id]/files?q=<filter>
 // 返回项目目录下的文件列表（最多 200 条），用于 chat-input @ 触发的文件面板
@@ -32,7 +33,12 @@ export async function GET(
     return NextResponse.json({ error: 'Project not found' }, { status: 404 });
   }
 
-  const rootPath = project.path;
+  let rootPath: string;
+  try {
+    rootPath = await validateProjectDirectory(project.path);
+  } catch {
+    return NextResponse.json({ files: [] });
+  }
 
   // 递归读取文件（忽略隐藏文件和常见忽略目录）
   const IGNORE_DIRS = new Set([

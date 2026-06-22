@@ -3,9 +3,9 @@ import { headers } from "next/headers";
 import { auth } from "@/lib/auth";
 import { db } from "@/db";
 import { projects } from "@/db/schema";
-import { eq, and } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { v4 as uuidv4 } from "uuid";
-import { existsSync } from "fs";
+import { validateProjectDirectory } from "@/lib/project-path";
 
 // GET /api/projects — 获取当前用户所有项目
 export async function GET() {
@@ -40,10 +40,12 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  // 校验路径在服务器端是否存在
-  if (!existsSync(path)) {
+  let normalizedPath: string;
+  try {
+    normalizedPath = await validateProjectDirectory(path);
+  } catch (error) {
     return NextResponse.json(
-      { error: "Path does not exist on the server" },
+      { error: error instanceof Error ? error.message : "Invalid project path" },
       { status: 400 }
     );
   }
@@ -54,7 +56,7 @@ export async function POST(req: NextRequest) {
     .values({
       id: uuidv4(),
       name,
-      path,
+      path: normalizedPath,
       defaultModel: defaultModel || "claude-opus-4-5",
       userId: session.user.id,
       createdAt: now,

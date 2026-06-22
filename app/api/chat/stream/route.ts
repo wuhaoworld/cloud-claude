@@ -6,16 +6,8 @@ import { projects, projectSessions, chatMessages } from "@/db/schema";
 import { eq, and } from "drizzle-orm";
 import { v4 as uuidv4 } from "uuid";
 import type { Block } from "@/store/types";
-
-// 全局权限请求暂存区（生产环境应使用 Redis 等持久化存储）
-export const pendingPermissions = new Map<
-  string,
-  {
-    resolve: (value: { behavior: "allow" | "deny" }) => void;
-    toolName: string;
-    input: Record<string, unknown>;
-  }
->();
+import { pendingPermissions, toPermissionResult } from "@/lib/pending-permissions";
+import { validateProjectDirectory } from "@/lib/project-path";
 
 interface PendingMessage {
   id: string;
@@ -62,6 +54,16 @@ export async function POST(req: NextRequest) {
 
   if (!project) {
     return NextResponse.json({ error: "Project not found" }, { status: 404 });
+  }
+
+  let projectPath: string;
+  try {
+    projectPath = await validateProjectDirectory(project.path);
+  } catch (error) {
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : "Invalid project path" },
+      { status: 400 }
+    );
   }
 
   const encoder = new TextEncoder();
@@ -117,38 +119,77 @@ export async function POST(req: NextRequest) {
 
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const queryOptions: any = {
-          cwd: project.path,
+          cwd: projectPath,
           permissionMode: "default",
           enableFileCheckpointing: true,
           includePartialMessages: true,
           ...(model ? { model } : {}),
           canUseTool: async (
             toolName: string,
-            input: Record<string, unknown>
+            input: Record<string, unknown>,
+            options: {
+              toolUseID: string;
+              suggestions?: import("@anthropic-ai/claude-agent-sdk").PermissionUpdate[];
+              title?: string;
+              displayName?: string;
+              description?: string;
+              blockedPath?: string;
+              decisionReason?: string;
+              signal: AbortSignal;
+            }
           ) => {
             const requestId = uuidv4();
-            // toolUseId 在 tool_start 时由服务端生成，这里用 requestId 关联
+            const toolUseID = options.toolUseID;
             emit("permission_request", {
               requestId,
-              toolUseId: requestId,
+              toolUseId: toolUseID,
               toolName,
               input,
+              title: options.title,
+              displayName: options.displayName,
+              description: options.description,
+              blockedPath: options.blockedPath,
+              decisionReason: options.decisionReason,
             });
 
-            const result = await new Promise<{ behavior: "allow" | "deny" }>(
+            const decision = await new Promise<
+              | { behavior: "allow"; updatedPermissions?: import("@anthropic-ai/claude-agent-sdk").PermissionUpdate[] }
+              | { behavior: "deny"; message: string }
+            >(
               (resolve) => {
-                pendingPermissions.set(requestId, { resolve, toolName, input });
-                setTimeout(() => {
+                const timeout = setTimeout(() => {
                   if (pendingPermissions.has(requestId)) {
                     pendingPermissions.delete(requestId);
-                    resolve({ behavior: "deny" });
+                    resolve({ behavior: "deny", message: "Permission request timed out." });
                   }
                 }, 5 * 60 * 1000);
+
+                const abort = () => {
+                  if (pendingPermissions.has(requestId)) {
+                    clearTimeout(timeout);
+                    pendingPermissions.delete(requestId);
+                    resolve({ behavior: "deny", message: "Permission request was cancelled." });
+                  }
+                };
+
+                options.signal.addEventListener("abort", abort, { once: true });
+
+                pendingPermissions.set(requestId, {
+                  resolve: (value) => {
+                    options.signal.removeEventListener("abort", abort);
+                    resolve(value);
+                  },
+                  timeout,
+                  toolName,
+                  input,
+                  toolUseID,
+                  suggestions: options.suggestions,
+                });
               }
             );
 
-            emit("permission_resolved", { requestId, behavior: result.behavior });
-            return result;
+            emit("permission_resolved", { requestId, behavior: decision.behavior });
+            return toPermissionResult(decision, toolUseID);
           },
         };
 
@@ -184,7 +225,7 @@ export async function POST(req: NextRequest) {
                     set: { lastActiveAt: now },
                   });
               }
-              emit("session_init", { sessionId: newSessionId });
+              emit("session_init", { sessionId: newSessionId, cwd: initMsg.cwd });
             }
           } else if (msgType === "stream_event") {
             // eslint-disable-next-line @typescript-eslint/no-explicit-any

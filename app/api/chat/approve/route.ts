@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { headers } from "next/headers";
 import { auth } from "@/lib/auth";
-import { pendingPermissions } from "@/app/api/chat/stream/route";
+import { pendingPermissions } from "@/lib/pending-permissions";
 
 // POST /api/chat/approve — 用户审批挂起的权限请求
 export async function POST(req: NextRequest) {
@@ -32,7 +32,12 @@ export async function POST(req: NextRequest) {
   }
 
   pendingPermissions.delete(requestId);
-  pending.resolve({ behavior: action === "approve" ? "allow" : "deny" });
+  clearTimeout(pending.timeout);
+  pending.resolve(
+    action === "approve"
+      ? { behavior: "allow", updatedPermissions: pending.suggestions }
+      : { behavior: "deny", message: "Permission denied by user." }
+  );
 
   return NextResponse.json({ success: true, behavior: action === "approve" ? "allow" : "deny" });
 }

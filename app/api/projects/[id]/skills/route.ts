@@ -7,6 +7,7 @@ import { eq, and } from 'drizzle-orm';
 import fs from 'fs';
 import path from 'path';
 import matter from 'gray-matter';
+import { validateProjectDirectory } from '@/lib/project-path';
 
 export interface SkillGroup {
   label: string;
@@ -42,7 +43,14 @@ export async function GET(
   }
 
   const groups: SkillGroup[] = [];
-  const skillsDir = path.join(project.path, '.agents', 'skills');
+  let projectPath: string;
+  try {
+    projectPath = await validateProjectDirectory(project.path);
+  } catch {
+    return NextResponse.json({ skills: [] });
+  }
+
+  const skillsDir = path.join(projectPath, '.agents', 'skills');
 
   if (!fs.existsSync(skillsDir)) {
     return NextResponse.json({ groups });

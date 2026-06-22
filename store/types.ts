@@ -39,7 +39,7 @@ export interface Message {
 // ---- SSE 事件协议 ----
 
 export type StreamEvent =
-  | { type: "session_init"; sessionId: string }
+  | { type: "session_init"; sessionId: string; cwd?: string }
   | { type: "text_delta"; msgId: string; delta: string }
   | { type: "thinking_delta"; msgId: string; delta: string }
   | { type: "thinking_done"; msgId: string; durationSeconds: number }
