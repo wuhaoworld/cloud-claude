@@ -1,10 +1,15 @@
 import "server-only";
 
-import { readFile } from "fs/promises";
+import { readdir, readFile } from "fs/promises";
+import os from "os";
 import path from "path";
 
-const INSTALLED_PLUGINS_PATH =
-  "/Users/wuhao/.claude/plugins/installed_plugins.json";
+const INSTALLED_PLUGINS_PATH = path.join(
+  os.homedir(),
+  ".claude",
+  "plugins",
+  "installed_plugins.json"
+);
 
 interface InstalledPluginsFile {
   version?: number;
@@ -34,6 +39,11 @@ interface PluginManifest {
   keywords?: string[];
 }
 
+interface SkillManifest {
+  name?: string;
+  description?: string;
+}
+
 export interface InstalledPlugin {
   id: string;
   name: string;
@@ -44,6 +54,13 @@ export interface InstalledPlugin {
   scope: string;
   author?: string;
   lastUpdated?: string;
+}
+
+export interface PluginSkill {
+  id: string;
+  name: string;
+  description: string;
+  path: string;
 }
 
 function splitPluginId(id: string) {
@@ -87,6 +104,38 @@ async function readManifest(installPath?: string) {
   );
 }
 
+function parseSkillFrontmatter(content: string): SkillManifest {
+  const match = content.match(/^---\n([\s\S]*?)\n---/);
+
+  if (!match) {
+    return {};
+  }
+
+  return match[1].split("\n").reduce<SkillManifest>((manifest, line) => {
+    const separatorIndex = line.indexOf(":");
+
+    if (separatorIndex <= 0) {
+      return manifest;
+    }
+
+    const key = line.slice(0, separatorIndex).trim();
+    const value = line
+      .slice(separatorIndex + 1)
+      .trim()
+      .replace(/^['\"]|['\"]$/g, "");
+
+    if (key === "name") {
+      manifest.name = value;
+    }
+
+    if (key === "description") {
+      manifest.description = value;
+    }
+
+    return manifest;
+  }, {});
+}
+
 export async function getInstalledPlugins(): Promise<InstalledPlugin[]> {
   const installedFile = await readJsonFile<InstalledPluginsFile>(
     INSTALLED_PLUGINS_PATH
@@ -114,4 +163,44 @@ export async function getInstalledPlugins(): Promise<InstalledPlugin[]> {
   );
 
   return plugins.sort((current, next) => current.name.localeCompare(next.name));
+}
+
+export async function getInstalledPlugin(id: string) {
+  const plugins = await getInstalledPlugins();
+
+  return plugins.find((plugin) => plugin.id === id) ?? null;
+}
+
+export async function getPluginSkills(plugin: InstalledPlugin): Promise<PluginSkill[]> {
+  if (!plugin.installPath) {
+    return [];
+  }
+
+  const skillsPath = path.join(plugin.installPath, "skills");
+
+  try {
+    const entries = await readdir(skillsPath, { withFileTypes: true });
+    const skillDirs = entries.filter((entry) => entry.isDirectory());
+
+    const skills = await Promise.all(
+      skillDirs.map(async (entry) => {
+        const skillPath = path.join(skillsPath, entry.name);
+        const skillFile = await readFile(path.join(skillPath, "SKILL.md"), "utf8").catch(
+          () => ""
+        );
+        const manifest = parseSkillFrontmatter(skillFile);
+
+        return {
+          id: entry.name,
+          name: manifest.name ?? entry.name,
+          description: manifest.description ?? "暂无 Skill 描述",
+          path: skillPath,
+        } satisfies PluginSkill;
+      })
+    );
+
+    return skills.sort((current, next) => current.name.localeCompare(next.name));
+  } catch {
+    return [];
+  }
 }

@@ -1,35 +1,11 @@
-import { Box, PackageOpen } from "lucide-react";
-import type { CSSProperties } from "react";
+import { PackageOpen } from "lucide-react";
+import Link from "next/link";
+import { PluginGlyph } from "@/components/plugins/plugin-glyph";
 import { getInstalledPlugins } from "@/lib/plugins";
 import { cn } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
-
-function PluginGlyph({ name }: { name: string }) {
-  const hue = Array.from(name).reduce(
-    (total, character) => total + character.charCodeAt(0),
-    0
-  ) % 360;
-
-  return (
-    <div
-      className="relative flex size-11 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-zinc-100 shadow-sm ring-1 ring-black/5"
-      style={
-        {
-          "--plugin-hue": hue,
-          "--plugin-hue-alt": (hue + 95) % 360,
-        } as CSSProperties
-      }
-      aria-hidden="true"
-    >
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_25%_20%,hsl(var(--plugin-hue)_95%_78%/.55),transparent_42%),radial-gradient(circle_at_80%_75%,hsl(var(--plugin-hue-alt)_92%_72%/.45),transparent_45%)]" />
-      <div className="relative grid size-6 place-items-center rounded-lg bg-white/70 shadow-[inset_0_1px_0_rgba(255,255,255,0.75)] backdrop-blur-sm">
-        <Box className="size-4 text-zinc-700" strokeWidth={2.2} />
-      </div>
-    </div>
-  );
-}
 
 export default async function PluginsPage() {
   const plugins = await getInstalledPlugins();
@@ -54,8 +30,9 @@ export default async function PluginsPage() {
           {plugins.length > 0 ? (
             <div className="grid grid-cols-1 gap-x-20 gap-y-7 md:grid-cols-2">
               {plugins.map((plugin) => (
-                <article
+                <Link
                   key={plugin.id}
+                  href={`/plugins/${encodeURIComponent(plugin.id)}`}
                   className={cn(
                     "group grid grid-cols-[auto_1fr] gap-3.5 rounded-2xl p-2.5",
                     "transition-colors hover:bg-zinc-50"
@@ -77,7 +54,7 @@ export default async function PluginsPage() {
                       {plugin.description}
                     </p>
                   </div>
-                </article>
+                </Link>
               ))}
             </div>
           ) : (
