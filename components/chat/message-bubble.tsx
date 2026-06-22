@@ -34,7 +34,7 @@ export function MessageBubble({ message }: MessageBubbleProps) {
     return (
       <div className="flex mb-4">
         <div className="flex-1 min-w-0">
-          <span className="text-xs thinking-highlight font-medium flex items-center gap-1.5">
+          <span className="text-xs thinking-highlight">
             正在思考
           </span>
         </div>

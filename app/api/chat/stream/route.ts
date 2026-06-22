@@ -165,7 +165,10 @@ export async function POST(req: NextRequest) {
             const initMsg = message as any;
             if (initMsg.session_id) {
               newSessionId = initMsg.session_id;
-              sortBase = 0;
+              // 仅在真正新建会话时重置 sortBase；恢复已有会话时保留从数据库计算的值
+              if (!sessionId) {
+                sortBase = 0;
+              }
               emit("session_init", { sessionId: newSessionId });
             }
           } else if (msgType === "stream_event") {
