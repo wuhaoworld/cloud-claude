@@ -15,7 +15,7 @@ export function PluginGlyph({ name, variant = "plugin" }: PluginGlyphProps) {
 
   return (
     <div
-      className="relative flex size-11 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-zinc-100 shadow-sm ring-1 ring-black/5"
+      className="relative flex size-11 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-zinc-100"
       style={
         {
           "--plugin-hue": hue,

@@ -1,4 +1,4 @@
-import { PackageOpen } from "lucide-react";
+import { ChevronRight, PackageOpen } from "lucide-react";
 import Link from "next/link";
 import { PluginGlyph } from "@/components/plugins/plugin-glyph";
 import { getInstalledPlugins } from "@/lib/plugins";
@@ -34,8 +34,8 @@ export default async function PluginsPage() {
                   key={plugin.id}
                   href={`/plugins/${encodeURIComponent(plugin.id)}`}
                   className={cn(
-                    "group grid grid-cols-[auto_1fr] gap-3.5 rounded-2xl p-2.5",
-                    "transition-colors hover:bg-zinc-50"
+                    "group relative grid grid-cols-[auto_1fr] gap-3.5 rounded-2xl p-2.5",
+                    "cursor-default transition-colors hover:bg-zinc-50"
                   )}
                 >
                   <PluginGlyph name={plugin.name} />
@@ -50,10 +50,11 @@ export default async function PluginsPage() {
                         </span>
                       ) : null}
                     </div>
-                    <p className="mt-1 line-clamp-2 text-sm leading-5 text-zinc-400">
+                    <p className="mt-1 line-clamp-2 pr-6 text-sm leading-5 text-zinc-400">
                       {plugin.description}
                     </p>
                   </div>
+                  <ChevronRight className="absolute right-3 top-1/2 size-4 -translate-y-1/2 text-zinc-300 opacity-0 transition-opacity group-hover:opacity-100" />
                 </Link>
               ))}
             </div>
