@@ -169,7 +169,7 @@ export function SessionActionsMenu({
               e.stopPropagation();
               handleDelete();
             }}
-            className="gap-2 text-destructive focus:text-destructive"
+            className="gap-2"
           >
             <Trash2 className="size-3.5" />
             删除

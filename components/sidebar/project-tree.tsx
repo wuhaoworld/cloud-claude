@@ -243,7 +243,7 @@ export function ProjectTree({ onNewSession }: ProjectTreeProps) {
                       e.stopPropagation();
                       handleDeleteProject(project.id, project.name);
                     }}
-                    className="gap-2 text-destructive focus:text-destructive"
+                    className="gap-2"
                   >
                     <Trash2 className="size-3.5" />
                     删除项目

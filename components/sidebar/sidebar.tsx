@@ -12,12 +12,14 @@ import {
   MessageSquarePlus,
 } from "lucide-react";
 import { ProjectTree } from "@/components/sidebar/project-tree";
+import { SearchPanel } from "@/components/sidebar/search-panel";
 import { CreateProjectDialog } from "@/components/project/create-project-dialog";
 import { useAppStore } from "@/store/app-store";
 
 export function AppSidebar() {
   const router = useRouter();
   const [createOpen, setCreateOpen] = useState(false);
+  const [searchOpen, setSearchOpen] = useState(false);
   const { setCurrentProject, setCurrentSession, clearMessages } = useAppStore();
 
   const handleNewChat = () => {
@@ -55,10 +57,12 @@ export function AppSidebar() {
           新对话
         </button>
         <button
+          onClick={() => setSearchOpen(true)}
           className={cn(
             "w-full flex items-center gap-2.5 px-2.5 py-2 rounded-md",
             "text-sm text-foreground hover:bg-[#EBEBED] transition-colors"
           )}
+          id="sidebar-search-btn"
         >
           <Search className="size-4 text-muted-foreground" />
           搜索
@@ -102,6 +106,9 @@ export function AppSidebar() {
       </div>
 
       <CreateProjectDialog open={createOpen} onOpenChange={setCreateOpen} />
+      {searchOpen ? (
+        <SearchPanel open={searchOpen} onOpenChange={setSearchOpen} />
+      ) : null}
     </aside>
   );
 }
