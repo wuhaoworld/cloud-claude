@@ -3,6 +3,7 @@
 import { useCallback, useRef } from "react";
 import { useAppStore } from "@/store/app-store";
 import type { StreamEvent } from "@/store/types";
+import type { PermissionMode } from "@/lib/permission-mode";
 import { v4 as uuidv4 } from "uuid";
 import { toast } from "sonner";
 
@@ -11,6 +12,7 @@ export interface SendOptions {
   prompt: string;
   sessionId?: string;
   model?: string;
+  permissionMode?: PermissionMode;
   optimisticSessionId?: string;
   /** 发现新会话 ID 时的回调（新对话首条消息） */
   onNewSession?: (sessionId: string, optimisticSessionId?: string) => void;
@@ -47,7 +49,15 @@ export function useAgentStream() {
 
   const send = useCallback(
     async (opts: SendOptions) => {
-      const { projectId, prompt, sessionId, model, optimisticSessionId, onNewSession } = opts;
+      const {
+        projectId,
+        prompt,
+        sessionId,
+        model,
+        permissionMode,
+        optimisticSessionId,
+        onNewSession,
+      } = opts;
 
       const userMsgId = uuidv4();
       const assistantMsgId = uuidv4();
@@ -79,7 +89,14 @@ export function useAgentStream() {
         const res = await fetch("/api/chat/stream", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ projectId, prompt, sessionId, userMsgId, model }),
+          body: JSON.stringify({
+            projectId,
+            prompt,
+            sessionId,
+            userMsgId,
+            model,
+            permissionMode,
+          }),
           signal: controller.signal,
         });
 

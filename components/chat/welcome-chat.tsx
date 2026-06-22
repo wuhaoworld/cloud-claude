@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useAppStore } from "@/store/app-store";
 import { ChatInput } from "@/components/chat/chat-input";
+import type { PermissionMode } from "@/lib/permission-mode";
 import { CreateProjectDialog } from "@/components/project/create-project-dialog";
 import { Folder, FolderOpen, ChevronDown, Check, Plus } from "lucide-react";
 import {
@@ -33,6 +34,7 @@ export function WelcomeChat({ defaultProjectId }: WelcomeChatProps) {
   // 当 defaultProjectId 变化时同步选中状态
   useEffect(() => {
     if (defaultProjectId) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- sync URL-provided project selection
       setSelectedProjectId(defaultProjectId);
       setCurrentProject(defaultProjectId);
     }
@@ -52,13 +54,22 @@ export function WelcomeChat({ defaultProjectId }: WelcomeChatProps) {
     setCurrentProject(projectId);
   };
 
-  const handleSend = (prompt: string) => {
+  const handleSend = (
+    prompt: string,
+    _attachments?: import("@/components/chat/chat-input/AttachmentCard").AttachmentFile[],
+    _skillIds?: string[] | null,
+    permissionMode?: PermissionMode,
+  ) => {
     if (!activeProjectId) {
       toast.error("请先选择或创建一个项目");
       return;
     }
     // 重定向到项目的 chat 页面，并通过 query 参数传递 prompt
-    router.push(`/chat/${activeProjectId}?prompt=${encodeURIComponent(prompt)}`);
+    const params = new URLSearchParams({ prompt });
+    if (permissionMode) {
+      params.set("permissionMode", permissionMode);
+    }
+    router.push(`/chat/${activeProjectId}?${params.toString()}`);
   };
 
   const selectedProject = projects.find((p) => p.id === activeProjectId);

@@ -4,6 +4,7 @@ import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { Plus, Square, ArrowUp, ChevronDown, Check } from "lucide-react";
 import { useAppStore } from "@/store/app-store";
 import { cn } from "@/lib/utils";
+import type { PermissionMode } from "@/lib/permission-mode";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -24,6 +25,18 @@ import {
   createFileBadgeDOM,
   createSkillBadgeDOM,
 } from "./chat-input/fileUtils";
+
+const PERMISSION_MODE_OPTIONS: Array<{
+  value: PermissionMode;
+  label: string;
+  description: string;
+}> = [
+  { value: "default", label: "Ask before edits", description: "标准权限行为" },
+  { value: "acceptEdits", label: "Edit automatically", description: "自动接受文件编辑" },
+  { value: "plan", label: "Plan mode", description: "仅读取工具" },
+  { value: "auto", label: "Auto mode", description: "自动审批工具调用" },
+  { value: "bypassPermissions", label: "Bypass permissions", description: "绕过权限检查" },
+];
 
 // ── Editor Helper ──────────────────────────────────────────────────
 
@@ -75,6 +88,7 @@ interface ChatInputProps {
     prompt: string,
     attachments?: AttachmentFile[],
     skillIds?: string[] | null,
+    permissionMode?: PermissionMode,
   ) => void;
   onStop?: () => void;
   disabled?: boolean;
@@ -100,17 +114,21 @@ export function ChatInput({
   const isStreaming = useAppStore((s) => s.isStreaming);
   const isActive = isStreaming;
 
-  const [model, setModel] = useState<string>("Mimo Pro v2.5");
-
-  useEffect(() => {
-    const saved = localStorage.getItem("selected-model");
-    if (saved) setModel(saved);
-  }, []);
+  const [model, setModel] = useState<string>(() => {
+    if (typeof window === "undefined") return "Mimo Pro v2.5";
+    return localStorage.getItem("selected-model") ?? "Mimo Pro v2.5";
+  });
+  const [permissionMode, setPermissionMode] =
+    useState<PermissionMode>("default");
 
   const handleModelChange = (val: string) => {
     setModel(val);
     localStorage.setItem("selected-model", val);
   };
+
+  const selectedPermissionMode = PERMISSION_MODE_OPTIONS.find(
+    (option) => option.value === permissionMode,
+  )!;
 
   // ── Editor state ──
   const editorRef = useRef<HTMLDivElement>(null);
@@ -547,7 +565,12 @@ export function ChatInput({
     if (!editor || !canSend) return;
 
     const { text, skillIds } = parseEditorContents(editor);
-    onSend(text, attachments.length > 0 ? attachments : undefined, skillIds);
+    onSend(
+      text,
+      attachments.length > 0 ? attachments : undefined,
+      skillIds,
+      permissionMode,
+    );
 
     editor.innerHTML = "";
     setHasText(false);
@@ -559,7 +582,7 @@ export function ChatInput({
     setAttachments([]);
 
     setTimeout(() => editor.focus(), 0);
-  }, [canSend, onSend, attachments]);
+  }, [canSend, onSend, attachments, permissionMode]);
 
   // ── Attachment: add ──
   const handleAddAttachment = () => {
@@ -721,7 +744,7 @@ export function ChatInput({
 
           {/* Bottom toolbar */}
           <div className="flex items-center justify-between px-1.5 pb-1.5">
-            {/* Left: add attachment */}
+            {/* Left: add attachment + permission mode */}
             <div className="flex items-center gap-0.5">
               <button
                 title={
@@ -735,6 +758,41 @@ export function ChatInput({
               >
                 <Plus size={14} />
               </button>
+
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <button
+                    disabled={disabled}
+                    title={selectedPermissionMode.description}
+                    className="flex items-center gap-1.5 px-2 py-1 rounded-lg text-[12.5px] dark:text-white/55 text-black/45 dark:hover:bg-white/[0.06] hover:bg-black/[0.05] dark:hover:text-white/75 hover:text-black/65 transition-all outline-none disabled:opacity-40 disabled:cursor-not-allowed"
+                  >
+                    <span>{selectedPermissionMode.label}</span>
+                    <ChevronDown className="size-3 opacity-60" />
+                  </button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="start" className="w-[220px] p-1 space-y-0.5">
+                  {PERMISSION_MODE_OPTIONS.map((option) => (
+                    <DropdownMenuItem
+                      key={option.value}
+                      onClick={() => setPermissionMode(option.value)}
+                      className={cn(
+                        "flex items-center justify-between gap-3 px-3 py-2 rounded-lg text-[13px] cursor-default",
+                        option.value === permissionMode && "bg-accent",
+                      )}
+                    >
+                      <span className="flex flex-col gap-0.5">
+                        <span>{option.label}</span>
+                        <span className="text-[11px] text-muted-foreground">
+                          {option.description}
+                        </span>
+                      </span>
+                      {option.value === permissionMode && (
+                        <Check className="size-3.5 shrink-0" />
+                      )}
+                    </DropdownMenuItem>
+                  ))}
+                </DropdownMenuContent>
+              </DropdownMenu>
             </div>
 
             {/* Right: model selector slot + send/stop */}
@@ -749,13 +807,13 @@ export function ChatInput({
                     <ChevronDown className="size-3 opacity-60" />
                   </button>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-[180px] p-1">
+                <DropdownMenuContent align="end" className="w-[180px] p-1 space-y-0.5">
                   {["Mimo Pro v2.5", "Claude 3.5 Sonnet", "Claude 3.5 Haiku", "Claude 3 Opus"].map((m) => (
                     <DropdownMenuItem
                       key={m}
                       onClick={() => handleModelChange(m)}
                       className={cn(
-                        "flex items-center justify-between px-3 py-1.5 rounded-lg text-[13px] cursor-pointer",
+                        "flex items-center justify-between px-3 py-1.5 rounded-lg text-[13px] cursor-default",
                         m === model && "bg-accent"
                       )}
                     >

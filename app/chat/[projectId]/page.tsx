@@ -5,6 +5,8 @@ import { useAppStore } from "@/store/app-store";
 import type { Message, Block } from "@/store/types";
 import { MessageBubble } from "@/components/chat/message-bubble";
 import { ChatInput } from "@/components/chat/chat-input";
+import type { PermissionMode } from "@/lib/permission-mode";
+import { isPermissionMode } from "@/lib/permission-mode";
 import { PermissionDialog } from "@/components/chat/permission-dialog";
 import { useAgentStream } from "@/hooks/use-agent-stream";
 import { toast } from "sonner";
@@ -15,6 +17,10 @@ import { v4 as uuidv4 } from "uuid";
 
 interface ChatPageProps {
   params: Promise<{ projectId: string }>;
+}
+
+function parsePermissionMode(value: string | null): PermissionMode | undefined {
+  return isPermissionMode(value) ? value : undefined;
 }
 
 export default function ProjectChatPage({ params }: ChatPageProps) {
@@ -162,6 +168,9 @@ export function ChatArea({
 
   const searchParams = useSearchParams();
   const promptParam = searchParams.get("prompt");
+  const permissionModeParam = parsePermissionMode(
+    searchParams.get("permissionMode"),
+  );
   const initialSentRef = useRef(false);
 
   // 切换会话/项目时初始化 & 加载历史消息（合并为单个 effect，避免 setCurrentProject 清除流式消息）
@@ -221,7 +230,8 @@ export function ChatArea({
     async (
       prompt: string,
       _attachments?: import("@/components/chat/chat-input/AttachmentCard").AttachmentFile[],
-      _skillIds?: string[] | null
+      _skillIds?: string[] | null,
+      permissionMode?: PermissionMode,
     ) => {
       if (isStreamingRef.current) return;
 
@@ -248,6 +258,7 @@ export function ChatArea({
         projectId,
         prompt,
         sessionId: activeSessionId,
+        permissionMode,
         optimisticSessionId,
         onNewSession: (newSessionId, pendingSessionId) => {
           const session = {
@@ -295,10 +306,18 @@ export function ChatArea({
       !isLoadingHistory
     ) {
       initialSentRef.current = true;
-      handleSend(promptParam);
+      handleSend(promptParam, undefined, null, permissionModeParam);
       window.history.replaceState(null, "", `/chat/${projectId}`);
     }
-  }, [promptParam, projectId, sessionId, projects, isLoadingHistory, handleSend]);
+  }, [
+    promptParam,
+    permissionModeParam,
+    projectId,
+    sessionId,
+    projects,
+    isLoadingHistory,
+    handleSend,
+  ]);
 
   const handleApprove = async (requestId: string) => {
     try {

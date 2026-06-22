@@ -6,6 +6,7 @@ import { projects, projectSessions, chatMessages } from "@/db/schema";
 import { eq, and } from "drizzle-orm";
 import { v4 as uuidv4 } from "uuid";
 import type { Block } from "@/store/types";
+import { isPermissionMode } from "@/lib/permission-mode";
 import { pendingPermissions, toPermissionResult } from "@/lib/pending-permissions";
 import { validateProjectDirectory } from "@/lib/project-path";
 
@@ -29,6 +30,7 @@ export async function POST(req: NextRequest) {
     sessionId?: string;
     userMsgId?: string;
     model?: string;
+    permissionMode?: unknown;
   };
   try {
     body = await req.json();
@@ -37,6 +39,9 @@ export async function POST(req: NextRequest) {
   }
 
   const { projectId, prompt, sessionId, model } = body;
+  const permissionMode = isPermissionMode(body.permissionMode)
+    ? body.permissionMode
+    : "default";
   const userMsgId = body.userMsgId || uuidv4();
 
   if (!projectId || !prompt) {
@@ -120,7 +125,7 @@ export async function POST(req: NextRequest) {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const queryOptions: any = {
           cwd: projectPath,
-          permissionMode: "default",
+          permissionMode,
           enableFileCheckpointing: true,
           includePartialMessages: true,
           ...(model ? { model } : {}),
@@ -436,11 +441,14 @@ export async function GET(req: NextRequest) {
   const prompt = searchParams.get("prompt") || "";
   const sessionId = searchParams.get("sessionId") || undefined;
   const userMsgId = searchParams.get("userMsgId") || undefined;
+  const permissionMode = isPermissionMode(searchParams.get("permissionMode"))
+    ? searchParams.get("permissionMode")
+    : undefined;
 
   const syntheticReq = new Request(req.url, {
     method: "POST",
     headers: req.headers,
-    body: JSON.stringify({ projectId, prompt, sessionId, userMsgId }),
+    body: JSON.stringify({ projectId, prompt, sessionId, userMsgId, permissionMode }),
   });
 
   return POST(new NextRequest(syntheticReq));
