@@ -358,7 +358,7 @@ export function ChatArea({
 
       {/* 消息列表 */}
       <div className="flex-1 overflow-y-auto scrollbar-thin">
-        <div className="max-w-3xl mx-auto px-6 py-6">
+        <div className="max-w-3xl mx-auto px-2 py-6">
           {isLoadingHistory ? (
             <div className="flex flex-col items-center justify-center py-16 gap-3">
               <Loader2 className="size-6 animate-spin text-muted-foreground" />
