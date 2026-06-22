@@ -13,10 +13,10 @@ import {
   XCircle,
 } from "lucide-react";
 import { useState } from "react";
-import type { ToolCall } from "@/store/app-store";
+import type { ToolUseBlock } from "@/store/types";
 
 interface ToolCallCardProps {
-  toolCall: ToolCall;
+  toolCall: ToolUseBlock;
 }
 
 const TOOL_ICONS: Record<string, React.ElementType> = {
@@ -51,6 +51,9 @@ export function ToolCallCard({ toolCall }: ToolCallCardProps) {
       <XCircle className="size-3 text-red-500" />
     );
 
+  const command = toolCall.input?.command as string | undefined;
+  const filePath = toolCall.input?.file_path as string | undefined;
+
   return (
     <div
       className={cn(
@@ -58,7 +61,6 @@ export function ToolCallCard({ toolCall }: ToolCallCardProps) {
         "transition-all duration-150"
       )}
     >
-      {/* 标题行 */}
       <button
         onClick={() => setExpanded(!expanded)}
         className="w-full flex items-center gap-2 px-3 py-2 hover:bg-muted/60 transition-colors"
@@ -67,32 +69,27 @@ export function ToolCallCard({ toolCall }: ToolCallCardProps) {
         <span
           className={cn(
             "font-medium transition-colors",
-            toolCall.status === "running"
-              ? "thinking-highlight"
-              : "text-foreground"
+            toolCall.status === "running" ? "thinking-highlight" : "text-foreground"
           )}
         >
           {label}
         </span>
 
-        {/* 命令预览 */}
-        {toolCall.input?.command && (
+        {command && (
           <code className="text-muted-foreground font-mono truncate flex-1 text-left">
-            {String(toolCall.input.command as string).slice(0, 40)}
-            {String(toolCall.input.command as string).length > 40 ? "…" : ""}
+            {command.slice(0, 40)}
+            {command.length > 40 ? "…" : ""}
           </code>
         )}
-        {toolCall.input?.file_path && (
+        {!command && filePath && (
           <code className="text-muted-foreground font-mono truncate flex-1 text-left">
-            {String(toolCall.input.file_path as string).split("/").slice(-2).join("/")}
+            {filePath.split("/").slice(-2).join("/")}
           </code>
         )}
 
         <div className="flex items-center gap-1.5 shrink-0 ml-auto">
-          {toolCall.duration && (
-            <span className="text-muted-foreground">
-              {toolCall.duration}ms
-            </span>
+          {toolCall.durationMs !== undefined && (
+            <span className="text-muted-foreground">{toolCall.durationMs}ms</span>
           )}
           {statusIcon}
           {expanded ? (
@@ -103,23 +100,19 @@ export function ToolCallCard({ toolCall }: ToolCallCardProps) {
         </div>
       </button>
 
-      {/* 展开内容 */}
       {expanded && (
         <div className="border-t border-border/60 px-3 py-2 space-y-2 overflow-hidden">
-          {/* 输入参数 */}
           <div>
             <p className="text-muted-foreground mb-1">输入参数</p>
             <pre className="text-foreground font-mono bg-background/60 rounded p-2 overflow-x-auto text-[11px] leading-relaxed max-w-full whitespace-pre-wrap break-all">
               {JSON.stringify(toolCall.input, null, 2)}
             </pre>
           </div>
-
-          {/* 输出结果 */}
-          {toolCall.result && (
+          {toolCall.output && (
             <div>
               <p className="text-muted-foreground mb-1">执行结果</p>
               <pre className="text-foreground font-mono bg-background/60 rounded p-2 overflow-x-auto text-[11px] leading-relaxed max-h-40 max-w-full whitespace-pre-wrap break-all">
-                {toolCall.result}
+                {toolCall.output}
               </pre>
             </div>
           )}

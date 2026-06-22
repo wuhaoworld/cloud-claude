@@ -1,5 +1,8 @@
 import { create } from "zustand";
 import { devtools } from "zustand/middleware";
+import type { Message, Block, TextBlock, ThinkingBlock, ToolUseBlock, StreamEvent, MessageStatus } from "./types";
+
+export type { Message, Block, TextBlock, ThinkingBlock, ToolUseBlock, StreamEvent, MessageStatus };
 
 export interface Project {
   id: string;
@@ -21,55 +24,44 @@ export interface ProjectSession {
   createdAt: number;
 }
 
-export type MessageRole = "user" | "assistant";
-export type MessageType = "text" | "thinking" | "tool_call" | "tool_result" | "permission_request";
-
-export interface ToolCall {
-  toolName: string;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  input: Record<string, any>;
-  result?: string;
-  status: "running" | "done" | "error";
-  duration?: number;
-}
-
 export interface PermissionRequest {
   requestId: string;
+  toolUseId: string;
   toolName: string;
   input: Record<string, unknown>;
-  command?: string;
 }
 
-export interface ChatMessage {
-  id: string;
-  role: MessageRole;
-  type: MessageType;
-  content: string;
-  toolCall?: ToolCall;
-  permissionRequest?: PermissionRequest;
-  isStreaming?: boolean;
-  timestamp: number;
-  thinkingStartedAt?: number;
+// ---- 纯函数工具 ----
+
+function patchMessage(msgs: Message[], id: string, fn: (m: Message) => Message): Message[] {
+  return msgs.map((m) => (m.id === id ? fn(m) : m));
 }
+
+function patchLastBlock<T extends Block>(
+  blocks: Block[],
+  guard: (b: Block) => b is T,
+  fn: (b: T) => T
+): Block[] {
+  const last = blocks[blocks.length - 1];
+  if (!last || !guard(last)) return blocks;
+  return [...blocks.slice(0, -1), fn(last)];
+}
+
+// ---- Store ----
 
 interface AppState {
-  // 项目状态
   projects: Project[];
   expandedProjects: Set<string>;
   currentProjectId: string | null;
 
-  // 会话状态
-  sessions: Record<string, ProjectSession[]>; // projectId -> sessions
+  sessions: Record<string, ProjectSession[]>;
   currentSessionId: string | null;
 
-  // 消息状态
-  messages: ChatMessage[];
+  messages: Message[];
   isStreaming: boolean;
 
-  // 权限请求
   pendingPermission: PermissionRequest | null;
 
-  // UI 状态
   sidebarWidth: number;
   rightPanelOpen: boolean;
 
@@ -88,12 +80,13 @@ interface AppState {
   setCurrentSession: (sessionId: string | null) => void;
 
   // Actions — 消息
-  setMessages: (messages: ChatMessage[]) => void;
-  addMessage: (message: ChatMessage) => void;
-  updateLastMessage: (content: string, isStreaming?: boolean) => void;
-  appendToLastMessage: (content: string) => void;
+  setMessages: (messages: Message[]) => void;
+  addMessage: (message: Message) => void;
   clearMessages: () => void;
   setIsStreaming: (streaming: boolean) => void;
+
+  // 细粒度流式事件分发（核心改进）
+  applyStreamEvent: (event: StreamEvent) => void;
 
   // Actions — 权限
   setPendingPermission: (permission: PermissionRequest | null) => void;
@@ -106,7 +99,6 @@ interface AppState {
 export const useAppStore = create<AppState>()(
   devtools(
     (set, get) => ({
-      // Initial state
       projects: [],
       expandedProjects: new Set(),
       currentProjectId: null,
@@ -124,24 +116,17 @@ export const useAppStore = create<AppState>()(
         set((state) => ({ projects: [...state.projects, project] })),
       updateProject: (id, data) =>
         set((state) => ({
-          projects: state.projects.map((p) =>
-            p.id === id ? { ...p, ...data } : p
-          ),
+          projects: state.projects.map((p) => (p.id === id ? { ...p, ...data } : p)),
         })),
       removeProject: (id) =>
         set((state) => ({
           projects: state.projects.filter((p) => p.id !== id),
-          currentProjectId:
-            state.currentProjectId === id ? null : state.currentProjectId,
+          currentProjectId: state.currentProjectId === id ? null : state.currentProjectId,
         })),
       toggleProjectExpanded: (projectId) =>
         set((state) => {
           const next = new Set(state.expandedProjects);
-          if (next.has(projectId)) {
-            next.delete(projectId);
-          } else {
-            next.add(projectId);
-          }
+          if (next.has(projectId)) { next.delete(projectId); } else { next.add(projectId); }
           if (typeof window !== "undefined") {
             localStorage.setItem("expanded-projects", JSON.stringify(Array.from(next)));
           }
@@ -158,46 +143,166 @@ export const useAppStore = create<AppState>()(
 
       // Session actions
       setSessions: (projectId, sessions) =>
-        set((state) => ({
-          sessions: { ...state.sessions, [projectId]: sessions },
-        })),
+        set((state) => ({ sessions: { ...state.sessions, [projectId]: sessions } })),
       addSession: (session) =>
-        set((state) => ({
-          sessions: {
-            ...state.sessions,
-            [session.projectId]: [
-              session,
-              ...(state.sessions[session.projectId] || []),
-            ],
-          },
-        })),
+        set((state) => {
+          const existing = state.sessions[session.projectId] || [];
+          if (existing.some((s) => s.sessionId === session.sessionId)) {
+            return state;
+          }
+          return {
+            sessions: {
+              ...state.sessions,
+              [session.projectId]: [session, ...existing],
+            },
+          };
+        }),
       setCurrentSession: (sessionId) => set({ currentSessionId: sessionId }),
 
       // Message actions
       setMessages: (messages) => set({ messages }),
       addMessage: (message) =>
         set((state) => ({ messages: [...state.messages, message] })),
-      updateLastMessage: (content, isStreaming) =>
-        set((state) => {
-          const msgs = [...state.messages];
-          if (msgs.length === 0) return {};
-          const last = { ...msgs[msgs.length - 1], content };
-          if (isStreaming !== undefined) last.isStreaming = isStreaming;
-          msgs[msgs.length - 1] = last;
-          return { messages: msgs };
-        }),
-      appendToLastMessage: (content) =>
-        set((state) => {
-          const msgs = [...state.messages];
-          if (msgs.length === 0) return {};
-          msgs[msgs.length - 1] = {
-            ...msgs[msgs.length - 1],
-            content: msgs[msgs.length - 1].content + content,
-          };
-          return { messages: msgs };
-        }),
       clearMessages: () => set({ messages: [] }),
       setIsStreaming: (isStreaming) => set({ isStreaming }),
+
+      // ---- 核心：细粒度流式事件分发 ----
+      applyStreamEvent: (event: StreamEvent) => {
+        const { messages } = get();
+
+        switch (event.type) {
+          case "text_delta": {
+            const updated = patchMessage(messages, event.msgId, (msg) => {
+              const last = msg.blocks[msg.blocks.length - 1];
+              if (!last || last.type !== "text") {
+                return {
+                  ...msg,
+                  blocks: [...msg.blocks, { type: "text" as const, text: event.delta }],
+                  status: "streaming" as MessageStatus,
+                };
+              }
+              return {
+                ...msg,
+                blocks: patchLastBlock(
+                  msg.blocks,
+                  (b): b is TextBlock => b.type === "text",
+                  (b) => ({ ...b, text: b.text + event.delta })
+                ),
+                status: "streaming" as MessageStatus,
+              };
+            });
+            set({ messages: updated });
+            break;
+          }
+
+          case "thinking_delta": {
+            const updated = patchMessage(messages, event.msgId, (msg) => {
+              const last = msg.blocks[msg.blocks.length - 1];
+              if (!last || last.type !== "thinking") {
+                return {
+                  ...msg,
+                  blocks: [...msg.blocks, { type: "thinking" as const, text: event.delta }],
+                  status: "streaming" as MessageStatus,
+                };
+              }
+              return {
+                ...msg,
+                blocks: patchLastBlock(
+                  msg.blocks,
+                  (b): b is ThinkingBlock => b.type === "thinking",
+                  (b) => ({ ...b, text: b.text + event.delta })
+                ),
+                status: "streaming" as MessageStatus,
+              };
+            });
+            set({ messages: updated });
+            break;
+          }
+
+          case "thinking_done": {
+            const updated = patchMessage(messages, event.msgId, (msg) => ({
+              ...msg,
+              blocks: msg.blocks.map((b) =>
+                b.type === "thinking" && b.durationSeconds === undefined
+                  ? { ...b, durationSeconds: event.durationSeconds }
+                  : b
+              ),
+            }));
+            set({ messages: updated });
+            break;
+          }
+
+          case "tool_start": {
+            const newToolBlock: ToolUseBlock = {
+              type: "tool_use",
+              toolUseId: event.toolUseId,
+              toolName: event.toolName,
+              input: event.input,
+              status: "running",
+            };
+            const updated = patchMessage(messages, event.msgId, (msg) => ({
+              ...msg,
+              blocks: [...msg.blocks, newToolBlock],
+              status: "streaming" as MessageStatus,
+            }));
+            set({ messages: updated });
+            break;
+          }
+
+          case "tool_end": {
+            const updated = patchMessage(messages, event.msgId, (msg) => ({
+              ...msg,
+              blocks: msg.blocks.map((b) =>
+                b.type === "tool_use" && b.toolUseId === event.toolUseId
+                  ? {
+                      ...b,
+                      output: event.output,
+                      isError: event.isError,
+                      status: (event.isError ? "error" : "done") as ToolUseBlock["status"],
+                      durationMs: event.durationMs,
+                    }
+                  : b
+              ),
+            }));
+            set({ messages: updated });
+            break;
+          }
+
+          case "permission_request":
+            set({
+              pendingPermission: {
+                requestId: event.requestId,
+                toolUseId: event.toolUseId,
+                toolName: event.toolName,
+                input: event.input,
+              },
+            });
+            break;
+
+          case "permission_resolved":
+            set({ pendingPermission: null });
+            break;
+
+          case "done": {
+            const updated = messages.map((m) =>
+              m.status === "streaming" ? { ...m, status: "done" as MessageStatus } : m
+            );
+            set({ messages: updated, isStreaming: false });
+            break;
+          }
+
+          case "error": {
+            const updated = messages.map((m) =>
+              m.status === "streaming" ? { ...m, status: "error" as MessageStatus } : m
+            );
+            set({ messages: updated, isStreaming: false });
+            break;
+          }
+
+          default:
+            break;
+        }
+      },
 
       // Permission actions
       setPendingPermission: (pendingPermission) => set({ pendingPermission }),

@@ -5,6 +5,7 @@ import { db } from "@/db";
 import { projects, projectSessions, chatMessages } from "@/db/schema";
 import { eq, and } from "drizzle-orm";
 import { v4 as uuidv4 } from "uuid";
+import type { Block } from "@/store/types";
 
 // 全局权限请求暂存区（生产环境应使用 Redis 等持久化存储）
 export const pendingPermissions = new Map<
@@ -16,29 +17,35 @@ export const pendingPermissions = new Map<
   }
 >();
 
-// 用于在 SSE 流中缓存本轮所有消息，流结束后批量写入 DB
 interface PendingMessage {
   id: string;
   role: "user" | "assistant";
-  type: string;
-  content: string;
-  toolCallJson?: string;
+  blocks: Block[];
   sortOrder: number;
 }
 
-// GET /api/chat/stream — SSE 流式 AI 对话
-export async function GET(req: NextRequest) {
+// POST /api/chat/stream — SSE 流式 AI 对话
+export async function POST(req: NextRequest) {
   const session = await auth.api.getSession({ headers: await headers() });
   if (!session?.user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const searchParams = req.nextUrl.searchParams;
-  const projectId = searchParams.get("projectId");
-  const sessionId = searchParams.get("sessionId") || undefined;
-  const prompt = searchParams.get("prompt");
-  // 客户端传来的用户消息 ID（已在前端生成，方便前后端对应）
-  const userMsgId = searchParams.get("userMsgId") || uuidv4();
+  let body: {
+    projectId: string;
+    prompt: string;
+    sessionId?: string;
+    userMsgId?: string;
+    model?: string;
+  };
+  try {
+    body = await req.json();
+  } catch {
+    return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
+  }
+
+  const { projectId, prompt, sessionId, model } = body;
+  const userMsgId = body.userMsgId || uuidv4();
 
   if (!projectId || !prompt) {
     return NextResponse.json(
@@ -47,7 +54,6 @@ export async function GET(req: NextRequest) {
     );
   }
 
-  // 验证项目属于当前用户
   const [project] = await db
     .select()
     .from(projects)
@@ -58,26 +64,20 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "Project not found" }, { status: 404 });
   }
 
-  // 创建 SSE 流
   const encoder = new TextEncoder();
 
   const stream = new ReadableStream({
     async start(controller) {
-      const send = (data: Record<string, unknown>) => {
+      const emit = (eventType: string, data: Record<string, unknown>) => {
         try {
           controller.enqueue(
-            encoder.encode(`data: ${JSON.stringify(data)}\n\n`)
+            encoder.encode(`event: ${eventType}\ndata: ${JSON.stringify(data)}\n\n`)
           );
         } catch {
           // stream closed
         }
       };
 
-      // 本轮待持久化的消息队列
-      const pendingMessages: PendingMessage[] = [];
-      let sortCounter = 0;
-
-      // 获取当前会话已有消息的最大 sortOrder，用于续写排序
       const getSortBase = async (sid: string): Promise<number> => {
         const rows = await db
           .select({ sortOrder: chatMessages.sortOrder })
@@ -88,37 +88,52 @@ export async function GET(req: NextRequest) {
       };
 
       try {
-        // 动态导入 SDK 避免打包问题
         const { query } = await import("@anthropic-ai/claude-agent-sdk");
 
         let newSessionId = sessionId;
         const isFirstMessage = !sessionId;
-        let sortBase = 0;
+        let sortBase = sessionId ? await getSortBase(sessionId) : 0;
+        let sortCounter = 0;
 
-        if (sessionId) {
-          sortBase = await getSortBase(sessionId);
-        }
+        const pendingMessages: PendingMessage[] = [];
 
-        // 先把用户消息加入队列
+        // 用户消息（单文本 block）
         pendingMessages.push({
           id: userMsgId,
           role: "user",
-          type: "text",
-          content: prompt,
+          blocks: [{ type: "text", text: prompt }],
           sortOrder: sortBase + sortCounter++,
         });
+
+        // 当前 assistant turn 的消息 ID 和 blocks（流式累积）
+        let assistantMsgId = uuidv4();
+        let assistantBlocks: Block[] = [];
+
+        // 工具计时：toolUseId → 开始时间戳
+        const toolTimers = new Map<string, number>();
+
+        // 思考开始时间
+        let thinkingStartMs = 0;
 
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const queryOptions: any = {
           cwd: project.path,
           permissionMode: "default",
           enableFileCheckpointing: true,
+          includePartialMessages: true,
+          ...(model ? { model } : {}),
           canUseTool: async (
             toolName: string,
             input: Record<string, unknown>
           ) => {
             const requestId = uuidv4();
-            send({ type: "permission_request", requestId, toolName, input });
+            // toolUseId 在 tool_start 时由服务端生成，这里用 requestId 关联
+            emit("permission_request", {
+              requestId,
+              toolUseId: requestId,
+              toolName,
+              input,
+            });
 
             const result = await new Promise<{ behavior: "allow" | "deny" }>(
               (resolve) => {
@@ -132,7 +147,7 @@ export async function GET(req: NextRequest) {
               }
             );
 
-            send({ type: "permission_resolved", requestId, behavior: result.behavior });
+            emit("permission_resolved", { requestId, behavior: result.behavior });
             return result;
           },
         };
@@ -141,114 +156,151 @@ export async function GET(req: NextRequest) {
           queryOptions.resume = sessionId;
         }
 
-        // 追踪当前正在构建的 AI 文本消息（流式累积）
-        let currentAiTextMsgId = uuidv4();
-        let currentAiTextContent = "";
-        let hasAiTextMsg = false;
-
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         for await (const message of query({ prompt, options: queryOptions }) as any) {
           const msgType = (message as { type: string }).type;
 
           if (msgType === "system" && (message as { subtype?: string }).subtype === "init") {
-            const initMsg = message as { session_id?: string };
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const initMsg = message as any;
             if (initMsg.session_id) {
               newSessionId = initMsg.session_id;
-              // 现在才能知道 sortBase（新会话从 0 开始）
               sortBase = 0;
-              // 更新用户消息的 sortOrder（初始已是 0，不变）
-              send({ type: "session_init", sessionId: newSessionId });
+              emit("session_init", { sessionId: newSessionId });
+            }
+          } else if (msgType === "stream_event") {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const event = (message as any).event;
+            if (!event) continue;
+
+            if (event.type === "content_block_start") {
+              const block = event.content_block;
+              if (block?.type === "thinking") {
+                thinkingStartMs = Date.now();
+                // 追加 thinking block（空文本，delta 会填充）
+                assistantBlocks.push({ type: "thinking", text: "" });
+              } else if (block?.type === "text") {
+                // 追加 text block
+                assistantBlocks.push({ type: "text", text: "" });
+              }
+            } else if (event.type === "content_block_delta") {
+              const delta = event.delta;
+              if (!delta) continue;
+
+              if (delta.type === "thinking_delta" && typeof delta.thinking === "string") {
+                // 追加到最后一个 thinking block
+                const last = assistantBlocks[assistantBlocks.length - 1];
+                if (last?.type === "thinking") {
+                  last.text += delta.thinking;
+                  emit("thinking_delta", { msgId: assistantMsgId, delta: delta.thinking });
+                }
+              } else if (delta.type === "text_delta" && typeof delta.text === "string") {
+                // 追加到最后一个 text block
+                const last = assistantBlocks[assistantBlocks.length - 1];
+                if (last?.type === "text") {
+                  last.text += delta.text;
+                  emit("text_delta", { msgId: assistantMsgId, delta: delta.text });
+                }
+              }
+            } else if (event.type === "content_block_stop") {
+              // 当一个 thinking block 关闭时，记录时长
+              const last = assistantBlocks[assistantBlocks.length - 1];
+              if (last?.type === "thinking" && thinkingStartMs > 0) {
+                const durationSeconds = (Date.now() - thinkingStartMs) / 1000;
+                last.durationSeconds = durationSeconds;
+                emit("thinking_done", { msgId: assistantMsgId, durationSeconds });
+                thinkingStartMs = 0;
+              }
             }
           } else if (msgType === "assistant") {
+            // 处理完整 assistant 消息（tool_use blocks 只在这里出现）
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             const content = (message as any).message?.content || [];
 
             for (const block of content) {
-              if (block.type === "text" && block.text) {
-                // 流式文本：累积到同一条消息
-                if (!hasAiTextMsg) {
-                  hasAiTextMsg = true;
-                  currentAiTextMsgId = uuidv4();
-                  currentAiTextContent = "";
-                  // 先发送占位，让前端知道消息 ID
-                  send({ type: "text_start", msgId: currentAiTextMsgId });
-                }
-                currentAiTextContent += block.text;
-                send({ type: "text", content: block.text, msgId: currentAiTextMsgId });
-              } else if (block.type === "thinking" && block.thinking) {
-                // thinking 块：独立消息，不与文本合并
-                if (hasAiTextMsg && currentAiTextContent) {
-                  // 先把文本消息推入队列
-                  pendingMessages.push({
-                    id: currentAiTextMsgId,
-                    role: "assistant",
-                    type: "text",
-                    content: currentAiTextContent,
-                    sortOrder: sortBase + sortCounter++,
-                  });
-                  hasAiTextMsg = false;
-                  currentAiTextContent = "";
-                }
-                const thinkingId = uuidv4();
-                pendingMessages.push({
-                  id: thinkingId,
-                  role: "assistant",
-                  type: "thinking",
-                  content: block.thinking,
-                  sortOrder: sortBase + sortCounter++,
-                });
-                send({ type: "thinking", content: block.thinking, msgId: thinkingId });
-              } else if (block.type === "tool_use") {
-                const toolMsgId = uuidv4();
-                pendingMessages.push({
-                  id: toolMsgId,
-                  role: "assistant",
-                  type: "tool_call",
-                  content: "",
-                  toolCallJson: JSON.stringify({
-                    toolName: block.name,
-                    input: block.input || {},
-                    status: "done",
-                  }),
-                  sortOrder: sortBase + sortCounter++,
-                });
-                send({
-                  type: "tool_call",
+              if (block.type === "tool_use") {
+                const toolUseId: string = block.id;
+                toolTimers.set(toolUseId, Date.now());
+                // 追加 tool_use block
+                const toolBlock: ToolUseBlock = {
+                  type: "tool_use",
+                  toolUseId,
                   toolName: block.name,
-                  toolUseId: block.id,
-                  input: block.input,
-                  msgId: toolMsgId,
+                  input: block.input || {},
+                  status: "running",
+                };
+                assistantBlocks.push(toolBlock);
+                emit("tool_start", {
+                  msgId: assistantMsgId,
+                  toolUseId,
+                  toolName: block.name,
+                  input: block.input || {},
                 });
               }
             }
-
-            // 如果这轮 assistant 消息包含文本，最终推入队列
-            if (hasAiTextMsg && currentAiTextContent) {
-              pendingMessages.push({
-                id: currentAiTextMsgId,
-                role: "assistant",
-                type: "text",
-                content: currentAiTextContent,
-                sortOrder: sortBase + sortCounter++,
-              });
-              hasAiTextMsg = false;
-              currentAiTextContent = "";
-            }
-          } else if (msgType === "tool_result") {
+          } else if (msgType === "user") {
+            // tool_result 消息 — 回填工具结果
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            const toolMsg = message as any;
-            send({
-              type: "tool_result",
-              toolUseId: toolMsg.tool_use_id,
-              content: toolMsg.content,
-            });
+            const userMsg = message as any;
+            const msgContent = userMsg.message?.content || [];
+
+            for (const block of msgContent) {
+              if (block.type === "tool_result") {
+                const toolUseId: string = block.tool_use_id;
+                const durationMs = Date.now() - (toolTimers.get(toolUseId) ?? Date.now());
+                toolTimers.delete(toolUseId);
+
+                const output =
+                  typeof block.content === "string"
+                    ? block.content
+                    : Array.isArray(block.content)
+                    ? block.content
+                        .filter((c: { type: string }) => c.type === "text")
+                        .map((c: { text: string }) => c.text)
+                        .join("\n")
+                    : "";
+
+                const isError = block.is_error ?? false;
+
+                // 更新 blocks 数组中对应的 tool_use block
+                const toolBlock = assistantBlocks.find(
+                  (b): b is ToolUseBlock => b.type === "tool_use" && b.toolUseId === toolUseId
+                );
+                if (toolBlock) {
+                  toolBlock.output = output;
+                  toolBlock.isError = isError;
+                  toolBlock.status = isError ? "error" : "done";
+                  toolBlock.durationMs = durationMs;
+                }
+
+                emit("tool_end", {
+                  msgId: assistantMsgId,
+                  toolUseId,
+                  output,
+                  isError,
+                  durationMs,
+                });
+              }
+            }
           } else if (msgType === "result") {
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             const resultMsg = message as any;
             const finalSessionId = resultMsg.session_id || newSessionId;
             const now = new Date();
 
-            // 1. 确保会话记录存在
+            // 当前 assistant turn 最终推入待持久化队列
+            if (assistantBlocks.length > 0) {
+              pendingMessages.push({
+                id: assistantMsgId,
+                role: "assistant",
+                blocks: [...assistantBlocks],
+                sortOrder: sortBase + sortCounter++,
+              });
+              // 重置状态，为下一个可能的 turn 做准备
+              assistantMsgId = uuidv4();
+              assistantBlocks = [];
+            }
+
             if (finalSessionId && isFirstMessage) {
               const sessionTitle = prompt.slice(0, 50) + (prompt.length > 50 ? "..." : "");
               await db
@@ -271,24 +323,25 @@ export async function GET(req: NextRequest) {
                 .where(eq(projectSessions.sessionId, finalSessionId));
             }
 
-            // 2. 批量写入本轮所有消息到数据库
+            // 批量持久化所有消息（blocks 以 JSON 存储）
             if (finalSessionId && pendingMessages.length > 0) {
               await db.insert(chatMessages).values(
                 pendingMessages.map((m) => ({
                   id: m.id,
                   sessionId: finalSessionId,
                   role: m.role,
-                  type: m.type,
-                  content: m.content,
-                  toolCallJson: m.toolCallJson || null,
+                  type: m.role === "user" ? "text" : "blocks",
+                  content: m.role === "user"
+                    ? (m.blocks[0] as { text: string }).text
+                    : "",
+                  toolCallJson: JSON.stringify(m.blocks),
                   sortOrder: m.sortOrder,
                   createdAt: now,
                 }))
               );
             }
 
-            send({
-              type: "done",
+            emit("done", {
               sessionId: finalSessionId,
               costUsd: resultMsg.cost_usd,
               durationMs: resultMsg.duration_ms,
@@ -297,7 +350,7 @@ export async function GET(req: NextRequest) {
         }
       } catch (error) {
         const errMsg = error instanceof Error ? error.message : "Unknown error";
-        send({ type: "error", message: errMsg });
+        emit("error", { message: errMsg });
       } finally {
         controller.close();
       }
@@ -311,4 +364,34 @@ export async function GET(req: NextRequest) {
       Connection: "keep-alive",
     },
   });
+}
+
+// 保留 GET 兼容旧客户端（临时过渡，可后续移除）
+export async function GET(req: NextRequest) {
+  const searchParams = req.nextUrl.searchParams;
+  const projectId = searchParams.get("projectId") || "";
+  const prompt = searchParams.get("prompt") || "";
+  const sessionId = searchParams.get("sessionId") || undefined;
+  const userMsgId = searchParams.get("userMsgId") || undefined;
+
+  const syntheticReq = new Request(req.url, {
+    method: "POST",
+    headers: req.headers,
+    body: JSON.stringify({ projectId, prompt, sessionId, userMsgId }),
+  });
+
+  return POST(new NextRequest(syntheticReq));
+}
+
+// ToolUseBlock 类型（本文件内部使用）
+interface ToolUseBlock {
+  type: "tool_use";
+  toolUseId: string;
+  toolName: string;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  input: Record<string, any>;
+  output?: string;
+  isError?: boolean;
+  status: "running" | "done" | "error";
+  durationMs?: number;
 }
