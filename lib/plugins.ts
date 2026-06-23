@@ -1,6 +1,6 @@
 import "server-only";
 
-import { readdir, readFile } from "fs/promises";
+import { mkdir, readdir, readFile, writeFile } from "fs/promises";
 import os from "os";
 import path from "path";
 
@@ -10,10 +10,16 @@ const INSTALLED_PLUGINS_PATH = path.join(
   "plugins",
   "installed_plugins.json"
 );
+const CLAUDE_SETTINGS_PATH = path.join(os.homedir(), ".claude", "settings.json");
 
 interface InstalledPluginsFile {
   version?: number;
   plugins?: Record<string, PluginInstall[]>;
+}
+
+interface ClaudeSettingsFile {
+  enabledPlugins?: Record<string, boolean>;
+  [key: string]: unknown;
 }
 
 interface PluginInstall {
@@ -58,6 +64,7 @@ export interface InstalledPlugin {
   homepage?: string;
   repository?: string;
   lastUpdated?: string;
+  enabled: boolean;
 }
 
 export interface PluginSkill {
@@ -123,6 +130,31 @@ async function readJsonFile<T>(filePath: string): Promise<T | null> {
   }
 }
 
+async function writeJsonFile(filePath: string, value: unknown) {
+  await mkdir(path.dirname(filePath), { recursive: true });
+  await writeFile(filePath, `${JSON.stringify(value, null, 2)}\n`, "utf8");
+}
+
+export async function getEnabledPlugins(): Promise<Record<string, boolean>> {
+  const settings = await readJsonFile<ClaudeSettingsFile>(CLAUDE_SETTINGS_PATH);
+
+  return settings?.enabledPlugins ?? {};
+}
+
+export async function setPluginEnabled(id: string, enabled: boolean) {
+  const settings =
+    (await readJsonFile<ClaudeSettingsFile>(CLAUDE_SETTINGS_PATH)) ?? {};
+
+  settings.enabledPlugins = {
+    ...(settings.enabledPlugins ?? {}),
+    [id]: enabled,
+  };
+
+  await writeJsonFile(CLAUDE_SETTINGS_PATH, settings);
+
+  return settings.enabledPlugins;
+}
+
 async function readManifest(installPath?: string) {
   if (!installPath) {
     return null;
@@ -166,9 +198,10 @@ function parseSkillFrontmatter(content: string): SkillManifest {
 }
 
 export async function getInstalledPlugins(): Promise<InstalledPlugin[]> {
-  const installedFile = await readJsonFile<InstalledPluginsFile>(
-    INSTALLED_PLUGINS_PATH
-  );
+  const [installedFile, enabledPlugins] = await Promise.all([
+    readJsonFile<InstalledPluginsFile>(INSTALLED_PLUGINS_PATH),
+    getEnabledPlugins(),
+  ]);
   const pluginEntries = Object.entries(installedFile?.plugins ?? {});
 
   const plugins = await Promise.all(
@@ -190,6 +223,7 @@ export async function getInstalledPlugins(): Promise<InstalledPlugin[]> {
         homepage: manifest?.homepage,
         repository: manifest?.repository,
         lastUpdated: currentInstall?.lastUpdated,
+        enabled: enabledPlugins[id] === true,
       } satisfies InstalledPlugin;
     })
   );

@@ -6,6 +6,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { PluginEnabledSwitch } from "@/components/plugins/plugin-enabled-switch";
 import { PluginGlyph } from "@/components/plugins/plugin-glyph";
 import {
   getInstalledPlugin,
@@ -78,6 +79,13 @@ export default async function PluginDetailPage({ params }: PluginDetailPageProps
                     v{plugin.version}
                   </span>
                 ) : null}
+                <span className="ml-auto text-sm font-medium text-zinc-500">
+                  {plugin.enabled ? "已启用" : "未启用"}
+                </span>
+                <PluginEnabledSwitch
+                  pluginId={plugin.id}
+                  enabled={plugin.enabled}
+                />
               </div>
 
               {plugin.displayName !== plugin.name ? (
@@ -116,6 +124,7 @@ export default async function PluginDetailPage({ params }: PluginDetailPageProps
                 ) : null}
               </div>
             </div>
+
           </div>
         </div>
       </header>
