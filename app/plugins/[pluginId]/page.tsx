@@ -2,8 +2,6 @@ import {
   ChevronLeft,
   Code2,
   ExternalLink,
-  PackageOpen,
-  ServerCog,
   Terminal,
 } from "lucide-react";
 import Link from "next/link";
@@ -34,6 +32,8 @@ export default async function PluginDetailPage({ params }: PluginDetailPageProps
     getPluginSkills(plugin),
     getPluginMcpServers(plugin),
   ]);
+  const hasMcpServers = mcpServers.length > 0;
+  const hasSkills = skills.length > 0;
   const links = [
     plugin.homepage
       ? {
@@ -122,20 +122,20 @@ export default async function PluginDetailPage({ params }: PluginDetailPageProps
 
       <main className="px-8 py-8">
         <div className="mx-auto grid w-full max-w-7xl gap-10">
-          <section>
-            <div className="mb-5">
-              <div className="flex items-center gap-2.5">
-                <h2 className="text-base font-semibold text-zinc-950">MCP</h2>
-                <div className="shrink-0 rounded-full border border-black/10 bg-white px-2.5 py-0.5 text-xs text-zinc-500">
-                  {mcpServers.length} 个
+          {hasMcpServers ? (
+            <section>
+              <div className="mb-5">
+                <div className="flex items-center gap-2.5">
+                  <h2 className="text-base font-semibold text-zinc-950">MCP</h2>
+                  <div className="shrink-0 rounded-full border border-black/10 bg-white px-2.5 py-0.5 text-xs text-zinc-500">
+                    {mcpServers.length} 个
+                  </div>
                 </div>
+                <p className="mt-1 text-sm text-zinc-400">
+                  从插件目录下的 .mcp.json 读取到的 MCP 服务配置。
+                </p>
               </div>
-              <p className="mt-1 text-sm text-zinc-400">
-                从插件目录下的 .mcp.json 读取到的 MCP 服务配置。
-              </p>
-            </div>
 
-            {mcpServers.length > 0 ? (
               <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
                 {mcpServers.map((server) => (
                   <article
@@ -183,35 +183,23 @@ export default async function PluginDetailPage({ params }: PluginDetailPageProps
                   </article>
                 ))}
               </div>
-            ) : (
-              <div className="flex min-h-[220px] flex-col items-center justify-center rounded-3xl border border-dashed border-zinc-200 bg-zinc-50/70 text-center">
-                <div className="mb-4 grid size-12 place-items-center rounded-2xl bg-white shadow-sm ring-1 ring-black/5">
-                  <ServerCog className="size-5 text-zinc-400" />
+            </section>
+          ) : null}
+
+          {hasSkills ? (
+            <section>
+              <div className="mb-5">
+                <div className="flex items-center gap-2.5">
+                  <h2 className="text-base font-semibold text-zinc-950">Skills</h2>
+                  <div className="shrink-0 rounded-full border border-black/10 bg-white px-2.5 py-0.5 text-xs text-zinc-500">
+                    {skills.length} 个
+                  </div>
                 </div>
-                <h2 className="text-base font-medium text-zinc-900">
-                  暂无 MCP 配置
-                </h2>
                 <p className="mt-1 text-sm text-zinc-400">
-                  未从该插件目录读取到 .mcp.json。
+                  当前插件提供的工作流与能力。
                 </p>
               </div>
-            )}
-          </section>
 
-          <section>
-            <div className="mb-5">
-              <div className="flex items-center gap-2.5">
-                <h2 className="text-base font-semibold text-zinc-950">Skills</h2>
-                <div className="shrink-0 rounded-full border border-black/10 bg-white px-2.5 py-0.5 text-xs text-zinc-500">
-                  {skills.length} 个
-                </div>
-              </div>
-              <p className="mt-1 text-sm text-zinc-400">
-                当前插件提供的工作流与能力。
-              </p>
-            </div>
-
-            {skills.length > 0 ? (
               <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
                 {skills.map((skill) => (
                   <article
@@ -227,20 +215,8 @@ export default async function PluginDetailPage({ params }: PluginDetailPageProps
                   </article>
                 ))}
               </div>
-            ) : (
-              <div className="flex min-h-[420px] flex-col items-center justify-center rounded-3xl border border-dashed border-zinc-200 bg-zinc-50/70 text-center">
-                <div className="mb-4 grid size-12 place-items-center rounded-2xl bg-white shadow-sm ring-1 ring-black/5">
-                  <PackageOpen className="size-5 text-zinc-400" />
-                </div>
-                <h2 className="text-base font-medium text-zinc-900">
-                  暂无 Skills
-                </h2>
-                <p className="mt-1 text-sm text-zinc-400">
-                  未从该插件的 skills 目录中读取到 Skill。
-                </p>
-              </div>
-            )}
-          </section>
+            </section>
+          ) : null}
         </div>
       </main>
     </div>
