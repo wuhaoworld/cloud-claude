@@ -1,8 +1,19 @@
-import { ChevronLeft, Code2, ExternalLink, PackageOpen } from "lucide-react";
+import {
+  ChevronLeft,
+  Code2,
+  ExternalLink,
+  PackageOpen,
+  ServerCog,
+  Terminal,
+} from "lucide-react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { PluginGlyph } from "@/components/plugins/plugin-glyph";
-import { getInstalledPlugin, getPluginSkills } from "@/lib/plugins";
+import {
+  getInstalledPlugin,
+  getPluginMcpServers,
+  getPluginSkills,
+} from "@/lib/plugins";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -19,7 +30,10 @@ export default async function PluginDetailPage({ params }: PluginDetailPageProps
     notFound();
   }
 
-  const skills = await getPluginSkills(plugin);
+  const [skills, mcpServers] = await Promise.all([
+    getPluginSkills(plugin),
+    getPluginMcpServers(plugin),
+  ]);
   const links = [
     plugin.homepage
       ? {
@@ -107,47 +121,126 @@ export default async function PluginDetailPage({ params }: PluginDetailPageProps
       </header>
 
       <main className="px-8 py-8">
-        <div className="mx-auto w-full max-w-7xl">
-          <div className="mb-5">
-            <div className="flex items-center gap-2.5">
-              <h2 className="text-base font-semibold text-zinc-950">Skills</h2>
-              <div className="shrink-0 rounded-full border border-black/10 bg-white px-2.5 py-0.5 text-xs text-zinc-500">
-                {skills.length} 个
+        <div className="mx-auto grid w-full max-w-7xl gap-10">
+          <section>
+            <div className="mb-5">
+              <div className="flex items-center gap-2.5">
+                <h2 className="text-base font-semibold text-zinc-950">MCP</h2>
+                <div className="shrink-0 rounded-full border border-black/10 bg-white px-2.5 py-0.5 text-xs text-zinc-500">
+                  {mcpServers.length} 个
+                </div>
               </div>
-            </div>
-            <p className="mt-1 text-sm text-zinc-400">
-              当前插件提供的工作流与能力。
-            </p>
-          </div>
-          {skills.length > 0 ? (
-            <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
-              {skills.map((skill) => (
-                <article
-                  key={skill.id}
-                  className="rounded-2xl border border-zinc-200/70 bg-white p-4 shadow-[0_10px_30px_rgba(24,24,27,0.04)]"
-                >
-                  <h3 className="text-sm font-semibold leading-5 text-zinc-950">
-                    {skill.name}
-                  </h3>
-                  <p className="mt-2 line-clamp-2 text-sm leading-6 text-zinc-500">
-                    {skill.description}
-                  </p>
-                </article>
-              ))}
-            </div>
-          ) : (
-            <div className="flex min-h-[420px] flex-col items-center justify-center rounded-3xl border border-dashed border-zinc-200 bg-zinc-50/70 text-center">
-              <div className="mb-4 grid size-12 place-items-center rounded-2xl bg-white shadow-sm ring-1 ring-black/5">
-                <PackageOpen className="size-5 text-zinc-400" />
-              </div>
-              <h2 className="text-base font-medium text-zinc-900">
-                暂无 Skills
-              </h2>
               <p className="mt-1 text-sm text-zinc-400">
-                未从该插件的 skills 目录中读取到 Skill。
+                从插件目录下的 .mcp.json 读取到的 MCP 服务配置。
               </p>
             </div>
-          )}
+
+            {mcpServers.length > 0 ? (
+              <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
+                {mcpServers.map((server) => (
+                  <article
+                    key={server.id}
+                    className="rounded-2xl border border-zinc-200/70 bg-white p-4 shadow-[0_10px_30px_rgba(24,24,27,0.04)] transition-shadow hover:shadow-[0_16px_44px_rgba(24,24,27,0.07)]"
+                  >
+                    <div className="flex min-w-0 items-center gap-2">
+                      <h3 className="truncate text-sm font-semibold leading-5 text-zinc-950">
+                        {server.id}
+                      </h3>
+                      <span className="shrink-0 rounded-full border border-zinc-200 bg-zinc-50 px-2 py-0.5 text-[11px] font-medium uppercase tracking-wide text-zinc-500">
+                        {server.type ?? "stdio"}
+                      </span>
+                    </div>
+
+                    <div className="mt-4 space-y-3 border-t border-zinc-100 pt-4">
+                      {server.url ? (
+                        <div>
+                          <div className="mb-2 text-xs font-medium text-zinc-500">
+                            服务地址
+                          </div>
+                          <a
+                            href={server.url}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="flex min-w-0 items-center gap-1.5 text-xs font-medium text-zinc-700 transition-colors hover:text-zinc-950"
+                          >
+                            <span className="truncate">{server.url}</span>
+                          </a>
+                        </div>
+                      ) : null}
+
+                      {server.command ? (
+                        <div>
+                          <div className="mb-2 flex items-center gap-1.5 text-xs font-medium text-zinc-500">
+                            <Terminal className="size-3.5" />
+                            启动命令
+                          </div>
+                          <code className="block overflow-x-auto text-xs leading-6 text-zinc-700">
+                            {[server.command, ...(server.args ?? [])].join(" ")}
+                          </code>
+                        </div>
+                      ) : null}
+                    </div>
+                  </article>
+                ))}
+              </div>
+            ) : (
+              <div className="flex min-h-[220px] flex-col items-center justify-center rounded-3xl border border-dashed border-zinc-200 bg-zinc-50/70 text-center">
+                <div className="mb-4 grid size-12 place-items-center rounded-2xl bg-white shadow-sm ring-1 ring-black/5">
+                  <ServerCog className="size-5 text-zinc-400" />
+                </div>
+                <h2 className="text-base font-medium text-zinc-900">
+                  暂无 MCP 配置
+                </h2>
+                <p className="mt-1 text-sm text-zinc-400">
+                  未从该插件目录读取到 .mcp.json。
+                </p>
+              </div>
+            )}
+          </section>
+
+          <section>
+            <div className="mb-5">
+              <div className="flex items-center gap-2.5">
+                <h2 className="text-base font-semibold text-zinc-950">Skills</h2>
+                <div className="shrink-0 rounded-full border border-black/10 bg-white px-2.5 py-0.5 text-xs text-zinc-500">
+                  {skills.length} 个
+                </div>
+              </div>
+              <p className="mt-1 text-sm text-zinc-400">
+                当前插件提供的工作流与能力。
+              </p>
+            </div>
+
+            {skills.length > 0 ? (
+              <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
+                {skills.map((skill) => (
+                  <article
+                    key={skill.id}
+                    className="rounded-2xl border border-zinc-200/70 bg-white p-4 shadow-[0_10px_30px_rgba(24,24,27,0.04)]"
+                  >
+                    <h3 className="text-sm font-semibold leading-5 text-zinc-950">
+                      {skill.name}
+                    </h3>
+                    <p className="mt-2 line-clamp-2 text-sm leading-6 text-zinc-500">
+                      {skill.description}
+                    </p>
+                  </article>
+                ))}
+              </div>
+            ) : (
+              <div className="flex min-h-[420px] flex-col items-center justify-center rounded-3xl border border-dashed border-zinc-200 bg-zinc-50/70 text-center">
+                <div className="mb-4 grid size-12 place-items-center rounded-2xl bg-white shadow-sm ring-1 ring-black/5">
+                  <PackageOpen className="size-5 text-zinc-400" />
+                </div>
+                <h2 className="text-base font-medium text-zinc-900">
+                  暂无 Skills
+                </h2>
+                <p className="mt-1 text-sm text-zinc-400">
+                  未从该插件的 skills 目录中读取到 Skill。
+                </p>
+              </div>
+            )}
+          </section>
         </div>
       </main>
     </div>

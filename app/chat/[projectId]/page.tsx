@@ -232,6 +232,7 @@ export function ChatArea({
       _attachments?: import("@/components/chat/chat-input/AttachmentCard").AttachmentFile[],
       _skillIds?: string[] | null,
       permissionMode?: PermissionMode,
+      model?: string,
     ) => {
       if (isStreamingRef.current) return;
 
@@ -258,6 +259,7 @@ export function ChatArea({
         projectId,
         prompt,
         sessionId: activeSessionId,
+        model,
         permissionMode,
         optimisticSessionId,
         onNewSession: (newSessionId, pendingSessionId) => {

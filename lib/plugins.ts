@@ -67,6 +67,31 @@ export interface PluginSkill {
   path: string;
 }
 
+export interface PluginMcpServer {
+  id: string;
+  command?: string;
+  args?: string[];
+  type?: string;
+  url?: string;
+  toolTitles: string[];
+}
+
+type McpServerConfig = {
+  command?: unknown;
+  args?: unknown;
+  type?: unknown;
+  url?: unknown;
+  _meta?: {
+    ideToolTitles?: unknown;
+  };
+};
+
+type McpConfigFile =
+  | Record<string, McpServerConfig | unknown>
+  | {
+      mcpServers?: Record<string, McpServerConfig | unknown>;
+    };
+
 function splitPluginId(id: string) {
   const atIndex = id.lastIndexOf("@");
 
@@ -210,4 +235,60 @@ export async function getPluginSkills(plugin: InstalledPlugin): Promise<PluginSk
   } catch {
     return [];
   }
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function normalizeMcpServer(id: string, config: unknown): PluginMcpServer | null {
+  if (!isRecord(config)) {
+    return null;
+  }
+
+  const meta = isRecord(config._meta) ? config._meta : null;
+  const ideToolTitles = isRecord(meta?.ideToolTitles)
+    ? meta.ideToolTitles
+    : null;
+  const toolTitles = ideToolTitles
+    ? Object.values(ideToolTitles).filter(
+        (title): title is string => typeof title === "string"
+      )
+    : [];
+
+  return {
+    id,
+    command: typeof config.command === "string" ? config.command : undefined,
+    args: Array.isArray(config.args)
+      ? config.args.filter((arg): arg is string => typeof arg === "string")
+      : undefined,
+    type: typeof config.type === "string" ? config.type : undefined,
+    url: typeof config.url === "string" ? config.url : undefined,
+    toolTitles,
+  };
+}
+
+export async function getPluginMcpServers(
+  plugin: InstalledPlugin
+): Promise<PluginMcpServer[]> {
+  if (!plugin.installPath) {
+    return [];
+  }
+
+  const mcpConfig = await readJsonFile<McpConfigFile>(
+    path.join(plugin.installPath, ".mcp.json")
+  );
+
+  if (!mcpConfig || !isRecord(mcpConfig)) {
+    return [];
+  }
+
+  const serverEntries = isRecord(mcpConfig.mcpServers)
+    ? Object.entries(mcpConfig.mcpServers)
+    : Object.entries(mcpConfig);
+
+  return serverEntries
+    .map(([id, config]) => normalizeMcpServer(id, config))
+    .filter((server): server is PluginMcpServer => server !== null)
+    .sort((current, next) => current.id.localeCompare(next.id));
 }

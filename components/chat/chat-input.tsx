@@ -89,6 +89,7 @@ interface ChatInputProps {
     attachments?: AttachmentFile[],
     skillIds?: string[] | null,
     permissionMode?: PermissionMode,
+    model?: string,
   ) => void;
   onStop?: () => void;
   disabled?: boolean;
@@ -100,6 +101,11 @@ interface ChatInputProps {
 }
 
 const MAX_ATTACHMENTS = 5;
+
+interface ModelOption {
+  name: string;
+  id: string;
+}
 
 // ── Component ──────────────────────────────────────────────────────
 
@@ -114,18 +120,39 @@ export function ChatInput({
   const isStreaming = useAppStore((s) => s.isStreaming);
   const isActive = isStreaming;
 
-  const [model, setModel] = useState<string>("Mimo Pro v2.5");
+  const [model, setModel] = useState<ModelOption>({ name: "Loading…", id: "" });
+  const [models, setModels] = useState<ModelOption[]>([]);
 
+  // Fetch models from settings
   useEffect(() => {
-    const stored = localStorage.getItem("selected-model");
-    if (stored) setModel(stored);
+    fetch("/api/settings/models")
+      .then((r) => r.json())
+      .then((data: { models?: ModelOption[] }) => {
+        const seen = new Set<string>();
+        const list = (data.models ?? []).filter((m) => {
+          if (!m.id || seen.has(m.id)) return false;
+          seen.add(m.id);
+          return true;
+        });
+        setModels(list);
+
+        const stored = localStorage.getItem("selected-model-id");
+        const found = stored ? list.find((m) => m.id === stored) : undefined;
+        if (found) {
+          setModel(found);
+        } else if (list.length > 0) {
+          setModel(list[0]);
+        }
+      })
+      .catch(() => {});
   }, []);
+
   const [permissionMode, setPermissionMode] =
     useState<PermissionMode>("default");
 
-  const handleModelChange = (val: string) => {
-    setModel(val);
-    localStorage.setItem("selected-model", val);
+  const handleModelChange = (m: ModelOption) => {
+    setModel(m);
+    localStorage.setItem("selected-model-id", m.id);
   };
 
   const selectedPermissionMode = PERMISSION_MODE_OPTIONS.find(
@@ -572,6 +599,7 @@ export function ChatInput({
       attachments.length > 0 ? attachments : undefined,
       skillIds,
       permissionMode,
+      model.id,
     );
 
     editor.innerHTML = "";
@@ -805,22 +833,22 @@ export function ChatInput({
                     disabled={disabled}
                     className="flex items-center gap-1.5 px-2 py-1 rounded-lg text-[12.5px] dark:text-white/55 text-black/45 dark:hover:bg-white/[0.06] hover:bg-black/[0.05] dark:hover:text-white/75 hover:text-black/65 transition-all outline-none"
                   >
-                    <span>{model}</span>
+                    <span>{model.name}</span>
                     <ChevronDown className="size-3 opacity-60" />
                   </button>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-[180px] p-1 space-y-0.5">
-                  {["Mimo Pro v2.5", "Claude 3.5 Sonnet", "Claude 3.5 Haiku", "Claude 3 Opus"].map((m) => (
+                <DropdownMenuContent align="end" className="min-w-[120px] w-fit max-w-[320px] p-1 space-y-0.5">
+                  {models.map((m) => (
                     <DropdownMenuItem
-                      key={m}
+                      key={m.id}
                       onClick={() => handleModelChange(m)}
                       className={cn(
-                        "flex items-center justify-between px-3 py-1.5 rounded-lg text-[13px] cursor-default",
-                        m === model && "bg-accent"
+                        "flex items-center justify-between gap-2 px-3 py-1.5 rounded-lg text-[13px] cursor-default whitespace-nowrap",
+                        m.id === model.id && "bg-accent"
                       )}
                     >
-                      <span>{m}</span>
-                      {m === model && <Check className="size-3.5" />}
+                      <span className="truncate">{m.name}</span>
+                      {m.id === model.id && <Check className="size-3.5 shrink-0" />}
                     </DropdownMenuItem>
                   ))}
                 </DropdownMenuContent>
