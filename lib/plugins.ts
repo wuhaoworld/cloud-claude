@@ -74,6 +74,13 @@ export interface PluginSkill {
   path: string;
 }
 
+export interface PluginCommand {
+  id: string;
+  name: string;
+  description: string;
+  path: string;
+}
+
 export interface PluginMcpServer {
   id: string;
   command?: string;
@@ -266,6 +273,41 @@ export async function getPluginSkills(plugin: InstalledPlugin): Promise<PluginSk
     );
 
     return skills.sort((current, next) => current.name.localeCompare(next.name));
+  } catch {
+    return [];
+  }
+}
+
+export async function getPluginCommands(plugin: InstalledPlugin): Promise<PluginCommand[]> {
+  if (!plugin.installPath) {
+    return [];
+  }
+
+  const commandsPath = path.join(plugin.installPath, "commands");
+
+  try {
+    const entries = await readdir(commandsPath, { withFileTypes: true });
+    const commandFiles = entries.filter(
+      (entry) => entry.isFile() && entry.name.endsWith(".md")
+    );
+
+    const commands = await Promise.all(
+      commandFiles.map(async (entry) => {
+        const filePath = path.join(commandsPath, entry.name);
+        const content = await readFile(filePath, "utf8").catch(() => "");
+        const manifest = parseSkillFrontmatter(content);
+        const commandName = entry.name.replace(/\.md$/, "");
+
+        return {
+          id: commandName,
+          name: manifest.name ?? commandName,
+          description: manifest.description ?? "暂无命令描述",
+          path: filePath,
+        } satisfies PluginCommand;
+      })
+    );
+
+    return commands.sort((current, next) => current.name.localeCompare(next.name));
   } catch {
     return [];
   }

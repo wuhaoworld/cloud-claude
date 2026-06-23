@@ -10,6 +10,7 @@ import { PluginEnabledSwitch } from "@/components/plugins/plugin-enabled-switch"
 import { PluginGlyph } from "@/components/plugins/plugin-glyph";
 import {
   getInstalledPlugin,
+  getPluginCommands,
   getPluginMcpServers,
   getPluginSkills,
 } from "@/lib/plugins";
@@ -29,12 +30,14 @@ export default async function PluginDetailPage({ params }: PluginDetailPageProps
     notFound();
   }
 
-  const [skills, mcpServers] = await Promise.all([
+  const [skills, mcpServers, commands] = await Promise.all([
     getPluginSkills(plugin),
     getPluginMcpServers(plugin),
+    getPluginCommands(plugin),
   ]);
   const hasMcpServers = mcpServers.length > 0;
   const hasSkills = skills.length > 0;
+  const hasCommands = commands.length > 0;
   const links = [
     plugin.homepage
       ? {
@@ -141,7 +144,7 @@ export default async function PluginDetailPage({ params }: PluginDetailPageProps
                   </div>
                 </div>
                 <p className="mt-1 text-sm text-zinc-400">
-                  从插件目录下的 .mcp.json 读取到的 MCP 服务配置。
+                  插件提供的 MCP
                 </p>
               </div>
 
@@ -205,7 +208,7 @@ export default async function PluginDetailPage({ params }: PluginDetailPageProps
                   </div>
                 </div>
                 <p className="mt-1 text-sm text-zinc-400">
-                  当前插件提供的工作流与能力。
+                  插件提供的 Skills
                 </p>
               </div>
 
@@ -220,6 +223,38 @@ export default async function PluginDetailPage({ params }: PluginDetailPageProps
                     </h3>
                     <p className="mt-2 line-clamp-2 text-sm leading-6 text-zinc-500">
                       {skill.description}
+                    </p>
+                  </article>
+                ))}
+              </div>
+            </section>
+          ) : null}
+
+          {hasCommands ? (
+            <section>
+              <div className="mb-5">
+                <div className="flex items-center gap-2.5">
+                  <h2 className="text-base font-semibold text-zinc-950">Commands</h2>
+                  <div className="shrink-0 rounded-full border border-black/10 bg-white px-2.5 py-0.5 text-xs text-zinc-500">
+                    {commands.length} 个
+                  </div>
+                </div>
+                <p className="mt-1 text-sm text-zinc-400">
+                  插件提供的 / 命令
+                </p>
+              </div>
+
+              <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
+                {commands.map((command) => (
+                  <article
+                    key={command.id}
+                    className="rounded-2xl border border-zinc-200/70 bg-white p-4 shadow-[0_10px_30px_rgba(24,24,27,0.04)]"
+                  >
+                    <h3 className="text-sm font-semibold leading-5 text-zinc-950">
+                      {command.name}
+                    </h3>
+                    <p className="mt-2 line-clamp-2 text-sm leading-6 text-zinc-500">
+                      {command.description}
                     </p>
                   </article>
                 ))}
