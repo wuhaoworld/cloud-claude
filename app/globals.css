@@ -231,10 +231,6 @@
   }
 }
 
-[data-streamdown="list-item"] {
-  margin-left: 1.3em;
-}
-
 [data-streamdown="table-wrapper"] {
   border: none;
   padding: 0;

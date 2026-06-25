@@ -44,6 +44,8 @@ interface PluginManifest {
   repository?: string;
   license?: string;
   keywords?: string[];
+  skills?: string | string[];
+  commands?: string | string[];
 }
 
 interface SkillManifest {
@@ -172,6 +174,39 @@ async function readManifest(installPath?: string) {
   );
 }
 
+function parsePathConfig(value: unknown): string[] {
+  if (typeof value === "string") {
+    return value.trim() ? [value.trim()] : [];
+  }
+
+  if (Array.isArray(value)) {
+    return value
+      .filter((entry): entry is string => typeof entry === "string")
+      .map((entry) => entry.trim())
+      .filter((entry) => entry.length > 0);
+  }
+
+  return [];
+}
+
+async function resolvePluginContentPaths(
+  plugin: InstalledPlugin,
+  field: "skills" | "commands",
+  fallbackDirName: string
+): Promise<string[]> {
+  const manifest = await readManifest(plugin.installPath);
+
+  if (manifest && Object.hasOwn(manifest, field)) {
+    const configured = parsePathConfig(manifest[field]);
+
+    return configured.map((configuredPath) =>
+      path.resolve(plugin.installPath, configuredPath)
+    );
+  }
+
+  return [path.join(plugin.installPath, fallbackDirName)];
+}
+
 function parseSkillFrontmatter(content: string): SkillManifest {
   const match = content.match(/^---\n([\s\S]*?)\n---/);
 
@@ -249,30 +284,36 @@ export async function getPluginSkills(plugin: InstalledPlugin): Promise<PluginSk
     return [];
   }
 
-  const skillsPath = path.join(plugin.installPath, "skills");
+  const skillsPaths = await resolvePluginContentPaths(plugin, "skills", "skills");
 
   try {
-    const entries = await readdir(skillsPath, { withFileTypes: true });
-    const skillDirs = entries.filter((entry) => entry.isDirectory());
-
     const skills = await Promise.all(
-      skillDirs.map(async (entry) => {
-        const skillPath = path.join(skillsPath, entry.name);
-        const skillFile = await readFile(path.join(skillPath, "SKILL.md"), "utf8").catch(
-          () => ""
-        );
-        const manifest = parseSkillFrontmatter(skillFile);
+      skillsPaths.map(async (skillsPath) => {
+        const entries = await readdir(skillsPath, { withFileTypes: true }).catch(() => []);
+        const skillDirs = entries.filter((entry) => entry.isDirectory());
 
-        return {
-          id: entry.name,
-          name: manifest.name ?? entry.name,
-          description: manifest.description ?? "暂无 Skill 描述",
-          path: skillPath,
-        } satisfies PluginSkill;
+        return Promise.all(
+          skillDirs.map(async (entry) => {
+            const skillPath = path.join(skillsPath, entry.name);
+            const skillFile = await readFile(path.join(skillPath, "SKILL.md"), "utf8").catch(
+              () => ""
+            );
+            const manifest = parseSkillFrontmatter(skillFile);
+
+            return {
+              id: entry.name,
+              name: manifest.name ?? entry.name,
+              description: manifest.description ?? "暂无 Skill 描述",
+              path: skillPath,
+            } satisfies PluginSkill;
+          })
+        );
       })
     );
 
-    return skills.sort((current, next) => current.name.localeCompare(next.name));
+    return skills
+      .flat()
+      .sort((current, next) => current.name.localeCompare(next.name));
   } catch {
     return [];
   }
@@ -283,31 +324,41 @@ export async function getPluginCommands(plugin: InstalledPlugin): Promise<Plugin
     return [];
   }
 
-  const commandsPath = path.join(plugin.installPath, "commands");
+  const commandsPaths = await resolvePluginContentPaths(
+    plugin,
+    "commands",
+    "commands"
+  );
 
   try {
-    const entries = await readdir(commandsPath, { withFileTypes: true });
-    const commandFiles = entries.filter(
-      (entry) => entry.isFile() && entry.name.endsWith(".md")
-    );
-
     const commands = await Promise.all(
-      commandFiles.map(async (entry) => {
-        const filePath = path.join(commandsPath, entry.name);
-        const content = await readFile(filePath, "utf8").catch(() => "");
-        const manifest = parseSkillFrontmatter(content);
-        const commandName = entry.name.replace(/\.md$/, "");
+      commandsPaths.map(async (commandsPath) => {
+        const entries = await readdir(commandsPath, { withFileTypes: true }).catch(() => []);
+        const commandFiles = entries.filter(
+          (entry) => entry.isFile() && entry.name.endsWith(".md")
+        );
 
-        return {
-          id: commandName,
-          name: manifest.name ?? commandName,
-          description: manifest.description ?? "暂无命令描述",
-          path: filePath,
-        } satisfies PluginCommand;
+        return Promise.all(
+          commandFiles.map(async (entry) => {
+            const filePath = path.join(commandsPath, entry.name);
+            const content = await readFile(filePath, "utf8").catch(() => "");
+            const manifest = parseSkillFrontmatter(content);
+            const commandName = entry.name.replace(/\.md$/, "");
+
+            return {
+              id: commandName,
+              name: manifest.name ?? commandName,
+              description: manifest.description ?? "暂无命令描述",
+              path: filePath,
+            } satisfies PluginCommand;
+          })
+        );
       })
     );
 
-    return commands.sort((current, next) => current.name.localeCompare(next.name));
+    return commands
+      .flat()
+      .sort((current, next) => current.name.localeCompare(next.name));
   } catch {
     return [];
   }
